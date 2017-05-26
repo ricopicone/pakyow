@@ -246,6 +246,11 @@ module Pakyow
             next unless Dir.within_dir?(normalize_path(File.dirname(path), store_path), view_path)
 
             name = File.basename(path.split('/')[-1], '.*')[1..-1]
+
+            if current_path = partials[name.to_sym]
+              next if current_path.split("/").length > path.split("/").length
+            end
+
             partials[name.to_sym] = path
           end
         end
