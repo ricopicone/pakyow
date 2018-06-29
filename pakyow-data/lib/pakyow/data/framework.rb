@@ -46,7 +46,7 @@ module Pakyow
           #
           attr_reader :data
 
-          after :initialize do
+          after :boot do
             @data = Lookup.new(
               containers: Pakyow.data_connections.values.each_with_object([]) { |connections, containers|
                 connections.values.each do |connection|

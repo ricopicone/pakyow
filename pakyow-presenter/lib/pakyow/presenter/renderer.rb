@@ -110,11 +110,8 @@ module Pakyow
           info[:layout] = layout_object.dup
         end
 
-        info[:layout].mixin(info[:partials])
-        info[:page].mixin(info[:partials])
-
         @presenter = (find_presenter(@as || @path) || Presenter).new(
-          info[:layout].build(info[:page]),
+          View.from_info(info),
           binders: @connection.app.state_for(:binder),
           presentables: @connection.values
         )

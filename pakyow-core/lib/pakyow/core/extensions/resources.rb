@@ -75,9 +75,18 @@ module Pakyow
             resource_id = ":#{param}"
             nested_resource_id = ":#{Support.inflector.singularize(controller.__class_name.name)}_#{param}"
 
-            # Nest resources as members of the current resource
+            # Nest resources as members of the current resource.
+            #
             controller.define_singleton_method :resources do |name, matcher, param: DEFAULT_PARAM, &block|
-              expand(:resources, name, File.join(nested_resource_id, matcher), param: param, &block)
+              expand(:resources, name, File.join(nested_resource_id, matcher), param: param) do
+                action :expose_parent_param_within_namespace, only: [:create]
+                define_method :expose_parent_param_within_namespace do
+                  nested_resource_id_param = nested_resource_id[1..-1].to_sym
+                  (params[Support.inflector.singularize(name).to_sym] ||= {})[nested_resource_id_param] = params[nested_resource_id_param]
+                end
+
+                instance_exec(&block)
+              end
             end
 
             action :update_request_path_for_show, only: [:show]

@@ -24,8 +24,20 @@ RSpec.describe "defining resources" do
       Proc.new {
         resources :posts, "/posts" do
           resources :comments, "/comments" do
+            disable_protection :csrf
+
             list do
               send "post #{params[:post_id]} comment list"
+            end
+
+            create do
+              verify do
+                required :comment do
+                  optional :body
+                end
+              end
+
+              send "create comment for post #{params[:comment][:post_id]}: #{params[:comment][:body]}"
             end
           end
         end
@@ -36,6 +48,14 @@ RSpec.describe "defining resources" do
       res = call("/posts/1/comments")
       expect(res[0]).to eq(200)
       expect(res[2].body.read).to eq("post 1 comment list")
+    end
+
+    describe "create route" do
+      it "exposes the parent id as a namespaced param and allows it to pass verification" do
+        res = call("/posts/1/comments", method: :post, params: { comment: { body: "foo" } })
+        expect(res[0]).to eq(200)
+        expect(res[2].body.read).to eq("create comment for post 1: foo")
+      end
     end
   end
 

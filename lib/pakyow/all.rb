@@ -7,6 +7,7 @@
   mailer
   presenter
   realtime
+  reflection
   support
   ui
 ).each do |lib|

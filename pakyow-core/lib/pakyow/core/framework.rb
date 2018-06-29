@@ -79,6 +79,7 @@ module Pakyow
 
         app.class_eval do
           extend Routing
+          include Routing
 
           # Make it possible to define controllers on the app.
           stateful :controller, controller_class

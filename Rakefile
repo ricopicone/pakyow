@@ -10,6 +10,7 @@ GEMS = %i[
   rake
   test
   realtime
+  reflection
   ui
 ].freeze
 

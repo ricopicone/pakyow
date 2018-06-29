@@ -703,6 +703,7 @@ module Pakyow
         raise NameError, "Unknown template `#{name}'" unless template = templates[name]
         Routing::Expansion.new(name, self, options, &template)
         class_eval(&block)
+        self
       end
 
       protected

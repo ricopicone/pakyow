@@ -32,15 +32,9 @@ module Pakyow
       end
 
       def self.binding_within?(node)
-        node.children.each do |child|
-          if BindingNode.significant?(child)
-            return true
-          else
-            binding_within?(child)
-          end
-        end
-
-        false
+        node.children.any? { |child|
+          BindingNode.significant?(child) || binding_within?(child)
+        }
       end
     end
 

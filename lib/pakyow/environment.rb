@@ -281,8 +281,8 @@ module Pakyow
         @app
       else
         @app = builder.to_app.tap do
-          call_hooks(:after, :boot)
           @apps.select { |app| app.respond_to?(:booted) }.each(&:booted)
+          call_hooks(:after, :boot)
         end
       end
     end

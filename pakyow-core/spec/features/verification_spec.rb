@@ -21,6 +21,10 @@ RSpec.shared_examples "verification" do
       expect(call("/test", params: { value1: "foo", value2: "bar" })[2].body).to eq(value1: "foo", value2: "bar")
     end
 
+    it "allows values that are expected in route params" do
+      expect(call("/test/1", params: { value1: "foo" })[2].body).to eq(value1: "foo", id: "1")
+    end
+
     it "does not include values for unpassed optional values" do
       expect(call("/test", params: { value1: "foo" })[2].body).to eq(value1: "foo")
     end
@@ -214,6 +218,10 @@ RSpec.describe "verifying all routes in a controller" do
         get :test, "/test" do
           instance_exec(&$verification_route)
         end
+
+        get :test_expected, "/test/:id" do
+          instance_exec(&$verification_route)
+        end
       end
     end
   end
@@ -235,6 +243,10 @@ RSpec.describe "verifying a specific route in a controller" do
         get :test, "/test" do
           instance_exec(&$verification_route)
         end
+
+        get :test_expected, "/test/:id" do
+          instance_exec(&$verification_route)
+        end
       end
     end
   end
@@ -250,6 +262,14 @@ RSpec.describe "verifying inside of a route" do
     Proc.new do
       controller do
         get :test, "/test" do
+          verify do
+            instance_exec(&$verification)
+          end
+
+          instance_exec(&$verification_route)
+        end
+
+        get :test_expected, "/test/:id" do
           verify do
             instance_exec(&$verification)
           end

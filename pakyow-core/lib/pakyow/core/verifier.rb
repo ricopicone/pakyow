@@ -63,12 +63,14 @@ module Pakyow
         @verifiers_by_key ||= {}
       end
 
-      def sanitize(input)
+      def sanitize(input, allowed_keys: [])
+        all_allowable_keys = allowable_keys + allowed_keys
+
         input.select! do |key, _|
-          allowable_keys.include?(key)
+          all_allowable_keys.include?(key)
         end
 
-        allowable_keys.each do |key|
+        all_allowable_keys.each do |key|
           next unless input.key?(key)
 
           value = input[key]
@@ -92,7 +94,11 @@ module Pakyow
       @context = context
 
       if should_sanitize?(input)
-        @values = self.class.sanitize(input)
+        @values = self.class.sanitize(input,
+                                      allowed_keys: keys_from_endpoint(
+                                        context.request.env["pakyow.endpoint"]
+                                      )
+        )
       end
 
       if should_validate?(input)
@@ -174,6 +180,14 @@ module Pakyow
 
     def should_validate?(input)
       !input.nil?
+    end
+
+    def keys_from_endpoint(endpoint)
+      endpoint.split("/").select { |part|
+        part.start_with?(":")
+      }.map { |part|
+        part[1..-1].to_sym
+      }
     end
   end
 end

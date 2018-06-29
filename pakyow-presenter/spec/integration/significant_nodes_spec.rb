@@ -8,7 +8,31 @@ RSpec.describe "significant nodes" do
   end
 
   describe "scopes" do
-    it "needs specs"
+    it "recognizes a binding that has an immediatly nested binding" do
+      view = Pakyow::Presenter::View.new(
+        <<~HTML
+          <div binding="foo">
+            <div binding="bar"></div>
+          </div>
+        HTML
+      )
+
+      expect(view.binding_scopes.count).to eq(1)
+    end
+
+    it "recognizes a binding that has a deeply nested binding" do
+      view = Pakyow::Presenter::View.new(
+        <<~HTML
+          <div binding="foo">
+            <div>
+              <div binding="bar"></div>
+            </div>
+          </div>
+        HTML
+      )
+
+      expect(view.binding_scopes.count).to eq(1)
+    end
   end
 
   describe "props" do

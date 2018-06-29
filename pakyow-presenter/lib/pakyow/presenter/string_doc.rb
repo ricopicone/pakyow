@@ -397,6 +397,8 @@ module Pakyow
             find_channel_for_binding!(element, attributes, labels)
           end
 
+          labels[:binding_path] = discover_parent_bindings(element)
+
           StringNode.new(["<#{element.name}", StringAttributes.new(attributes)], significance: significance, labels: labels, parent: self)
         else
           name = element.text.strip.match(/@[^\s]*\s*([a-zA-Z0-9\-_]*)/)[1]
@@ -454,6 +456,18 @@ module Pakyow
         end
 
         channel
+      end
+
+      def discover_parent_bindings(element, parents: [])
+        if element.parent.is_a?(Oga::XML::Element)
+          discover_parent_bindings(element.parent, parents: parents)
+
+          if binding_name = element.parent[:binding]
+            parents << binding_name.split(":")[0].to_sym
+          end
+        end
+
+        parents
       end
     end
   end

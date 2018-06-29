@@ -34,6 +34,13 @@ module Pakyow
             end
           end
         end
+
+        # @api private
+        def from_info(info)
+          info[:layout].mixin(info[:partials])
+          info[:page].mixin(info[:partials])
+          info[:layout].build(info[:page])
+        end
       end
 
       include Support::SafeStringHelpers
