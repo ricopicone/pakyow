@@ -10,7 +10,16 @@ module Pakyow
           end
 
           def exists?
-            raw_connection.table_exists?(table_name)
+            if logger = @connection.logger
+              # This method causes a sql error if the table doesn't exist, which can be confusing when
+              # included in the log output. Silence even errors just for this one check.
+              #
+              logger.silence(Logger::ERROR + 1) do
+                raw_connection.table_exists?(table_name)
+              end
+            else
+              raw_connection.table_exists?(table_name)
+            end
           end
 
           def changes?

@@ -73,7 +73,7 @@ module Pakyow
   using Support::Refinements::Array::Ensurable
 
   extend Support::DeepFreeze
-  unfreezable :logger, :app
+  unfreezable :global_logger, :app
 
   include Support::Hookable
   events :load, :configure, :setup, :boot, :fork, :shutdown
@@ -125,6 +125,10 @@ module Pakyow
     # Logger instance for the environment
     #
     attr_reader :logger
+
+    # Global logger instance
+    #
+    attr_reader :global_logger
 
     # The main Pakyow process.
     #
@@ -385,9 +389,13 @@ module Pakyow
 
     def init_global_logger
       logs = config.logger.destinations
-      @logger = Logger.new(Logger::MultiLog.new(*logs))
-      @logger.level = Logger.const_get(config.logger.level.to_s.upcase)
-      @logger.formatter = config.logger.formatter.new
+
+      @global_logger = Logger.new(Logger::MultiLog.new(*logs))
+      @global_logger.level = Logger.const_get(config.logger.level.to_s.upcase)
+      @global_logger.formatter = config.logger.formatter.new
+
+      require "pakyow/logger/thread_local"
+      @logger = Logger::ThreadLocal.new(@global_logger)
     end
 
     def handler(preferred)

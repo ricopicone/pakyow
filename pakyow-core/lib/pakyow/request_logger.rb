@@ -45,7 +45,7 @@ module Pakyow
     # @param started_at [Time] when the request began
     # @param logger [Object] the object that will perform the logging
     # @param id [String] a unique id used to identify the request
-    def initialize(type, started_at: Time.now, logger: Pakyow.logger.dup, id: SecureRandom.hex(4))
+    def initialize(type, started_at: Time.now, logger: Pakyow.global_logger.dup, id: SecureRandom.hex(4))
       @type, @started_at, @logger, @id = type, started_at, logger, id
     end
 

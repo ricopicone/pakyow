@@ -103,22 +103,26 @@ module Pakyow
         end
 
         def connect
-          @connection = Sequel.connect(
-            adapter: @opts[:adapter],
-            database: @opts[:path],
-            host: @opts[:host],
-            port: @opts[:port],
-            user: @opts[:user],
-            password: @opts[:password],
-            logger: @logger
-          )
+          Pakyow.logger.silence do
+            @connection = Sequel.connect(
+              adapter: @opts[:adapter],
+              database: @opts[:path],
+              host: @opts[:host],
+              port: @opts[:port],
+              user: @opts[:user],
+              password: @opts[:password],
+              logger: @logger
+            )
 
-          (DEFAULT_EXTENSIONS + DEFAULT_ADAPTER_EXTENSIONS[@opts[:adapter].to_s.to_sym].to_a).each do |extension|
-            @connection.extension extension
-          end
+            @connection.sql_log_level = :debug
 
-          if @opts.include?(:timeout)
-            @connection.pool.connection_validation_timeout = @opts[:timeout].to_i
+            (DEFAULT_EXTENSIONS + DEFAULT_ADAPTER_EXTENSIONS[@opts[:adapter].to_s.to_sym].to_a).each do |extension|
+              @connection.extension extension
+            end
+
+            if @opts.include?(:timeout)
+              @connection.pool.connection_validation_timeout = @opts[:timeout].to_i
+            end
           end
         rescue Sequel::AdapterNotFound => error
           raise MissingAdapter.build(error)
@@ -133,7 +137,13 @@ module Pakyow
         end
 
         def connected?
-          @connection.opts[:adapter] == "sqlite" || @connection.test_connection
+          if @logger
+            @logger.silence do
+              @connection.opts[:adapter] == "sqlite" || @connection.test_connection
+            end
+          else
+            @connection.opts[:adapter] == "sqlite" || @connection.test_connection
+          end
         rescue
           false
         end

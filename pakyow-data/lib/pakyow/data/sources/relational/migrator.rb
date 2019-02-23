@@ -11,7 +11,13 @@ module Pakyow
 
           def auto_migrate!
             if @sources.any?
-              migrate!(automator)
+              if logger = @connection.logger
+                logger.silence do
+                  migrate!(automator)
+                end
+              else
+                migrate!(automator)
+              end
             end
           end
 

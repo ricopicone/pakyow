@@ -14,7 +14,7 @@ module Pakyow
       extend Forwardable
       def_delegators :@adapter, :dataset_for_source, :transaction
 
-      attr_reader :type, :name, :opts, :adapter, :failure
+      attr_reader :type, :name, :opts, :adapter, :failure, :logger
 
       extend Support::DeepFreeze
       unfreezable :logger, :adapter
