@@ -40,6 +40,10 @@ class StringDoc
       }]
     end
 
+    def replace(attributes_hash)
+      @attributes_hash = attributes_hash
+    end
+
     def []=(key, value)
       @attributes_hash[key.to_s] = value
     end

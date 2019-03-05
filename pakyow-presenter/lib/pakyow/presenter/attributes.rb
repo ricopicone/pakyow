@@ -77,22 +77,24 @@ module Pakyow
       # @!method delete
       #   Deletes key by name from {@attributes}.
       #
-      def_delegators :@attributes, :keys, :delete, :each
+      def_delegators :@attributes, :keys, :each
 
       # Wraps a hash of view attributes
       #
       # @param attributes [Hash]
       #
       def initialize(attributes)
-        attributes.each do |name, value|
-          attributes[name] = Attributes.typed_value_for_attribute_with_name(value, name)
-        end
+        attributes.replace(
+          ::Hash[attributes.attributes_hash.map { |name, value|
+            [name, Attributes.typed_value_for_attribute_with_name(value, name)]
+          }]
+        )
 
         @attributes = attributes
       end
 
       def [](attribute)
-        attribute = attribute.to_sym
+        attribute = normalize_attribute_name(attribute)
         attribute_type = self.class.type_of_attribute(attribute)
 
         if attribute_type == ATTRIBUTE_TYPE_BOOLEAN
@@ -103,7 +105,7 @@ module Pakyow
       end
 
       def []=(attribute, value)
-        attribute = ensure_html_safety(attribute.to_s).to_sym
+        attribute = ensure_html_safety(normalize_attribute_name(attribute)).to_s
 
         if value.nil?
           @attributes.delete(attribute)
@@ -119,7 +121,17 @@ module Pakyow
       end
 
       def has?(attribute)
-        @attributes.key?(attribute.to_sym)
+        @attributes.key?(normalize_attribute_name(attribute))
+      end
+
+      def delete(attribute)
+        @attributes.delete(normalize_attribute_name(attribute))
+      end
+
+      private
+
+      def normalize_attribute_name(name)
+        name.to_s
       end
     end
   end
