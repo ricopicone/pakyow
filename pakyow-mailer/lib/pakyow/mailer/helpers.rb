@@ -8,9 +8,7 @@ module Pakyow
           connection = @connection.dup
 
           renderer = @connection.app.isolated(:ViewRenderer).new(
-            connection,
-            templates_path: path,
-            embed_templates: false
+            connection, templates_path: path
           )
 
           Mailer.new(

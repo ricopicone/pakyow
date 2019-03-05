@@ -112,7 +112,7 @@ RSpec.describe "implicitly rendering when a controller is called but does not re
       end
 
       it "sets the content length and content type headers to the expected value" do
-        expect(call("/other", method: :head)[1]).to include("Content-Length" => 90, "Content-Type" => "text/html")
+        expect(call("/other", method: :head)[1]).to include("Content-Length" => 82, "Content-Type" => "text/html")
       end
     end
 

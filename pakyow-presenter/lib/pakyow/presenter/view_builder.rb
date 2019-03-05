@@ -5,6 +5,12 @@ module Pakyow
     class ViewBuilder
       include Support::Pipeline
 
+      action :cleanup_prototype_nodes do |state|
+        unless Pakyow.env?(:prototype)
+          state.view.object.each_significant_node(:prototype).map(&:itself).each(&:remove)
+        end
+      end
+
       action :componentize_forms do |state|
         if state.app.config.presenter.componentize
           state.view.object.each_significant_node(:form) do |form|
@@ -34,6 +40,46 @@ module Pakyow
           head.append("<meta name=\"pw-authenticity-param\">")
         end
       end
+
+      action :create_template_nodes do |state|
+        unless Pakyow.env?(:prototype)
+          state.view.each_binding_scope do |node_with_binding|
+            attributes = node_with_binding.attributes.attributes_hash.each_with_object({}) do |(attribute, value), acc|
+              acc[attribute] = value if attribute.to_s.start_with?("data")
+            end
+
+            node_with_binding.after("<script type=\"text/template\"#{StringDoc::Attributes.new(attributes)}>#{node_with_binding}</script>")
+          end
+        end
+      end
+
+      action :initialize_forms do |state|
+        if state.view.object.is_a?(StringDoc::Node) && state.view.form?
+          state.view.object.set_label(:metadata, {})
+        end
+
+        state.view.forms.each do |form|
+          form.object.set_label(:metadata, {})
+        end
+      end
+
+      # def forms(renderer)
+      #     [].tap do |forms|
+      #       if renderer.presenter.view.object.is_a?(StringDoc::Node) && renderer.presenter.view.form?
+      #         forms << renderer.presenter.presenter_for(
+      #           renderer.presenter.view, type: FormPresenter
+      #         )
+      #       end
+
+      #       forms.concat(renderer.presenter.forms)
+      #     end
+      #   end
+
+      #   def init_form_metadata(form)
+      #     unless form.view.labeled?(:metadata)
+      #       form.view.object.set_label(:metadata, {})
+      #     end
+      #   end
     end
   end
 end
