@@ -9,6 +9,7 @@ require "pakyow/presenter/rendering/component_renderer"
 require "pakyow/presenter/rendering/actions/cleanup_prototype_nodes"
 require "pakyow/presenter/rendering/actions/create_template_nodes"
 require "pakyow/presenter/rendering/actions/insert_prototype_bar"
+require "pakyow/presenter/rendering/actions/install_authenticity"
 require "pakyow/presenter/rendering/actions/install_endpoints"
 require "pakyow/presenter/rendering/actions/place_in_mode"
 require "pakyow/presenter/rendering/actions/render_components"
@@ -61,6 +62,7 @@ module Pakyow
         end
       end
 
+      action :install_authenticity, Actions::InstallAuthenticity, before: :dispatch
       action :install_endpoints, Actions::InstallEndpoints, before: :dispatch
       action :insert_prototype_bar, Actions::InsertPrototypeBar, before: :dispatch
       action :cleanup_prototype_nodes, Actions::CleanupPrototypeNodes, before: :dispatch
