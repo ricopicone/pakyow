@@ -421,8 +421,6 @@ class StringDoc
     @nodes.empty?
   end
 
-  private
-
   def render(doc = self, string = String.new)
     if doc.collapsed && doc.empty?
       string << doc.collapsed
@@ -453,6 +451,8 @@ class StringDoc
       string
     end
   end
+
+  private
 
   # Parses an Oga document into an array of +Node+ objects.
   #
