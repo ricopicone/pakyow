@@ -141,6 +141,13 @@ class StringDoc
     @collapsed = nil
   end
 
+  def copy(nodes: @nodes, collapsed: @collapsed)
+    self.class.allocate.tap do |copy|
+      copy.instance_variable_set(:@nodes, nodes)
+      copy.instance_variable_set(:@collapsed, collapsed)
+    end
+  end
+
   # @api private
   def initialize_copy(_)
     super

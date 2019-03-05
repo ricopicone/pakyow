@@ -95,5 +95,11 @@ class StringDoc
         h[key] = value.dup
       }
     end
+
+    def copy(attributes_hash: @attributes_hash)
+      self.class.allocate.tap do |copy|
+        copy.instance_variable_set(:@attributes_hash, attributes_hash)
+      end
+    end
   end
 end

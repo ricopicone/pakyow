@@ -30,7 +30,7 @@ class StringDoc
       end
     end
 
-    attr_reader :node, :parent, :children, :attributes, :tag_open_start, :tag_open_end, :tag_close
+    attr_reader :node, :parent, :children, :attributes, :tag_open_start, :tag_open_end, :tag_close, :significance, :labels
 
     # @api private
     attr_writer :parent
@@ -51,6 +51,19 @@ class StringDoc
       @significance = @significance.dup
       @attributes = @attributes.dup
       @children = @children.dup
+    end
+
+    def copy(children: @children, labels: @labels, attributes: @attributes)
+      self.class.allocate.tap do |copy|
+        copy.instance_variable_set(:@tag_open_start, @tag_open_start)
+        copy.instance_variable_set(:@attributes, attributes)
+        copy.instance_variable_set(:@tag_open_end, @tag_open_end)
+        copy.instance_variable_set(:@children, children)
+        copy.instance_variable_set(:@tag_close, @tag_close)
+        copy.instance_variable_set(:@parent, @parent)
+        copy.instance_variable_set(:@labels, labels)
+        copy.instance_variable_set(:@significance, @significance)
+      end
     end
 
     def empty?
