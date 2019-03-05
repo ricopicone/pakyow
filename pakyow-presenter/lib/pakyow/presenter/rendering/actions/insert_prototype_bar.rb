@@ -8,7 +8,7 @@ module Pakyow
         def call(renderer)
           if renderer.rendering_prototype?
             if body_node = renderer.presenter.view.object.find_first_significant_node(:body)
-              body_node.append_html <<~HTML
+              body_node.append <<~HTML
                 <style>
                   .pw-prototype {
                     font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Oxygen-Sans,Ubuntu,Cantarell,"Helvetica Neue",sans-serif;

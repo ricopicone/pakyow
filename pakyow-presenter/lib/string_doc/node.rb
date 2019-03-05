@@ -170,12 +170,6 @@ class StringDoc
       children.append(node)
     end
 
-    # Appends +html+ as a child.
-    #
-    def append_html(html)
-      children.append_html(html)
-    end
-
     # Prepends +node+ as a child.
     #
     def prepend(node)

@@ -316,14 +316,6 @@ class StringDoc
     end
   end
 
-  # Appends raw html to this document, without parsing.
-  #
-  def append_html(html)
-    tap do
-      @nodes << Node.new(html.to_s)
-    end
-  end
-
   # Prepends to this document.
   #
   # Accepts a +StringDoc+ or XML +String+.

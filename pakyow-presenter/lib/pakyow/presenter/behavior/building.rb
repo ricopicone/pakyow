@@ -27,10 +27,10 @@ module Pakyow
             super.tap do |view|
               if config.presenter.embed_authenticity_token && head = view.object.find_first_significant_node(:head)
                 # embed the authenticity token
-                head.append_html("<meta name=\"pw-authenticity-token\" content=\"{{pw-authenticity-token}}\">\n")
+                head.append("<meta name=\"pw-authenticity-token\" content=\"{{pw-authenticity-token}}\">\n")
 
                 # embed the parameter name the token should be submitted as
-                head.append_html("<meta name=\"pw-authenticity-param\" content=\"{{pw-authenticity-param}}\">\n")
+                head.append("<meta name=\"pw-authenticity-param\" content=\"{{pw-authenticity-param}}\">\n")
               end
             end
           end
