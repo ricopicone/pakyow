@@ -44,7 +44,7 @@ module Pakyow
 
       extend Forwardable
 
-      def_delegators :@object, :type, :text, :html, :label, :labeled?
+      def_delegators :@object, :type, :text, :html, :label, :labeled?, :to_s, :to_html
 
       # The object responsible for parsing, manipulating, and rendering
       # the underlying HTML document for the view.
@@ -364,21 +364,6 @@ module Pakyow
         (label(:version) || VersionedView::DEFAULT_VERSION).to_sym
       end
 
-      # Converts +self+ to html, rendering the view.
-      #
-      def to_html(clean_bindings: true, clean_versions: true)
-        if clean_bindings
-          remove_unused_bindings
-        end
-
-        if clean_versions
-          remove_unused_versions
-        end
-
-        @object.to_html
-      end
-      alias :to_s :to_html
-
       # @api private
       def binding_name
         label(:binding)
@@ -496,7 +481,7 @@ module Pakyow
         end
       end
 
-      protected
+      private
 
       def bind_value_to_node(value, node)
         tag = node.tagname
@@ -509,18 +494,6 @@ module Pakyow
             node.html = ensure_html_safety(value)
           end
         end
-      end
-
-      def remove_unused_bindings
-        @object.each_significant_node(:binding).select { |node|
-          !node.labeled?(:used)
-        }.each(&:remove)
-      end
-
-      def remove_unused_versions
-        @object.each.select { |node|
-          (node.is_a?(StringDoc::Node) && node.significant? && node.labeled?(:version)) && node.label(:version) != VersionedView::DEFAULT_VERSION
-        }.each(&:remove)
       end
 
       def view_from_view_or_string(view_or_string)

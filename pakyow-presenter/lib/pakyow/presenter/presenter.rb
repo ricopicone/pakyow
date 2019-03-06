@@ -368,9 +368,9 @@ module Pakyow
         end
       end
 
-      def to_html(clean_bindings: true, clean_versions: true)
+      def to_html
         call unless called?
-        @view.to_html(clean_bindings: clean_bindings, clean_versions: clean_versions)
+        @view.to_html
       end
       alias to_s to_html
 

@@ -12,6 +12,7 @@ require "pakyow/presenter/rendering/actions/install_endpoints"
 require "pakyow/presenter/rendering/actions/place_in_mode"
 require "pakyow/presenter/rendering/actions/render_components"
 require "pakyow/presenter/rendering/actions/setup_forms"
+require "pakyow/presenter/rendering/actions/cleanup_unused_nodes"
 
 module Pakyow
   module Presenter
@@ -21,7 +22,7 @@ module Pakyow
           renderer = new(connection, **args)
           renderer.perform
 
-          html = renderer.to_html(clean_bindings: !Pakyow.env?(:prototype))
+          html = renderer.to_html
           connection.set_response_header(Rack::CONTENT_LENGTH, html.bytesize)
           connection.set_response_header(Rack::CONTENT_TYPE, "text/html")
           connection.body = StringIO.new(html)
@@ -66,6 +67,7 @@ module Pakyow
       action :install_endpoints, Actions::InstallEndpoints, before: :dispatch
       action :render_components, Actions::RenderComponents, before: :dispatch
       action :setup_forms, Actions::SetupForms, after: :dispatch
+      action :cleanup_unused_nodes, Actions::CleanupUnusedNodes, after: :setup_forms
 
       using Support::Refinements::String::Normalization
 
