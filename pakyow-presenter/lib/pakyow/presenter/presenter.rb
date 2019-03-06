@@ -109,7 +109,6 @@ module Pakyow
       def initialize(view, binders: [], presentables: {}, logger: nil)
         @view, @binders, @presentables = view, binders, presentables
         @logger = logger || Pakyow.logger
-        @called = false
       end
 
       # Returns a presenter for a view binding.
@@ -359,6 +358,15 @@ module Pakyow
         other.is_a?(self.class) && @view == other.view
       end
 
+      def call
+        super(self)
+      end
+
+      def to_html
+        @view.to_html
+      end
+      alias to_s to_html
+
       # @api private
       def wrap_data_in_binder(data)
         if data.is_a?(Binder)
@@ -366,24 +374,6 @@ module Pakyow
         else
           (binder_for_current_scope || Binder).new(data)
         end
-      end
-
-      def to_html
-        call unless called?
-        @view.to_html
-      end
-      alias to_s to_html
-
-      # @api private
-      def call
-        super(self).tap do
-          @called = true
-        end
-      end
-
-      # @api private
-      def called?
-        @called == true
       end
 
       private

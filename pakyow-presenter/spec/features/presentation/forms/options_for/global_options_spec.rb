@@ -35,7 +35,7 @@ RSpec.describe "defining global options in the presenter" do
     end
 
     it "applies the options to the form" do
-      expect(presenter.to_s).to eq_sans_whitespace(
+      expect(presenter.call.to_s).to eq_sans_whitespace(
         <<~HTML
           <form data-b="post" data-c="form">
             <select data-b="tag" data-c="form">
@@ -49,7 +49,7 @@ RSpec.describe "defining global options in the presenter" do
     end
 
     it "calls the block in context of the presenter instance" do
-      presenter.to_s
+      presenter.call.to_s
       expect($context).to be_instance_of(presenter_class)
     end
   end
@@ -66,7 +66,7 @@ RSpec.describe "defining global options in the presenter" do
     end
 
     it "applies the options to the form" do
-      expect(presenter.to_s).to eq_sans_whitespace(
+      expect(presenter.call.to_s).to eq_sans_whitespace(
         <<~HTML
           <form data-b="post" data-c="form">
             <select data-b="tag" data-c="form">
