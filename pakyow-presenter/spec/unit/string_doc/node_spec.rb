@@ -59,7 +59,7 @@ RSpec.describe StringDoc::Node do
 
       it "maintains internal state" do
         node = doc.find_significant_nodes_with_name(:binding, :title)[0]
-        node.instance_variable_set(:@labels, { foo: "bar" })
+        node.object.instance_variable_set(:@labels, { foo: "bar" })
         node.replace(StringDoc.new("foo"))
         expect(node.label(:foo)).to eq("bar")
       end
@@ -74,7 +74,7 @@ RSpec.describe StringDoc::Node do
 
       it "maintains internal state" do
         node = doc.find_significant_nodes_with_name(:binding, :title)[0]
-        node.instance_variable_set(:@labels, { foo: "bar" })
+        node.object.instance_variable_set(:@labels, { foo: "bar" })
         node.replace(node.dup)
         expect(node.label(:foo)).to eq("bar")
       end
@@ -410,19 +410,19 @@ RSpec.describe StringDoc::Node do
 
   describe "#inspect" do
     it "includes significance" do
-      expect(node.inspect).to include("@significance=[:binding, :within_binding]")
+      expect(node.inspect).to include("significance=[:binding, :within_binding]")
     end
 
     it "includes labels" do
-      expect(node.inspect).to include("@labels={:binding=>:title, :channel=>[], :combined_channel=>\"\"}")
+      expect(node.inspect).to include("labels={:binding=>:title, :channel=>[], :combined_channel=>\"\"}")
     end
 
     it "includes attributes" do
-      expect(node.inspect).to include("@attributes=#<StringDoc::Attributes")
+      expect(node.inspect).to include("attributes=#<StringDoc::Attributes")
     end
 
     it "includes children" do
-      expect(node.inspect).to include("@children=#<StringDoc")
+      expect(node.inspect).to include("children=#<StringDoc")
     end
 
     it "does not include node" do
