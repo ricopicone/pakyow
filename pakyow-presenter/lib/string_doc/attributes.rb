@@ -34,10 +34,15 @@ class StringDoc
     #
     def_delegators :@attributes_hash, :keys, :each
 
-    def initialize(attributes_hash = {})
+    def initialize(attributes_hash = {}, delegate = self)
+      @delegate = delegate
       @attributes_hash = Hash[attributes_hash.map { |key, value|
         [key.to_s, value]
       }]
+    end
+
+    def transform(priority: :default, &block)
+      @delegate.add_transformation(self, priority: priority, &block)
     end
 
     def replace(attributes_hash)

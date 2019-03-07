@@ -29,10 +29,12 @@ class StringDoc
   class << self
     # Creates an empty doc.
     #
-    def empty
+    def empty(delegate: nil)
       allocate.tap do |doc|
         doc.instance_variable_set(:@nodes, [])
         doc.instance_variable_set(:@collapsed, nil)
+        doc.instance_variable_set(:@transformations, {})
+        doc.instance_variable_set(:@delegate, delegate)
       end
     end
 
@@ -44,10 +46,12 @@ class StringDoc
 
     # Creates a +StringDoc+ from an array of +Node+ objects.
     #
-    def from_nodes(nodes)
+    def from_nodes(nodes, delegate: nil)
       allocate.tap do |instance|
         instance.instance_variable_set(:@nodes, nodes)
         instance.instance_variable_set(:@collapsed, nil)
+        instance.instance_variable_set(:@transformations, {})
+        instance.instance_variable_set(:@delegate, delegate)
 
         nodes.each do |node|
           node.parent = instance
@@ -123,6 +127,7 @@ class StringDoc
       when Node
         [doc_node_or_string]
       else
+        # TODO: consider what the delegate should be
         StringDoc.new(doc_node_or_string.to_s).nodes
       end
     end
@@ -130,15 +135,24 @@ class StringDoc
 
   include Pakyow::Support::Silenceable
 
-  # Array of +Node+ objects.
-  #
-  attr_reader :nodes, :collapsed
+  attr_reader :collapsed
+
+  # @api private
+  attr_reader :nodes, :transformations
 
   # Creates a +StringDoc+ from an html string.
   #
-  def initialize(html)
+  def initialize(html, delegate: self)
+    @delegate, @transformations, @collapsed = delegate, {}, nil
     @nodes = parse(Oga.parse_html(html))
-    @collapsed = nil
+  end
+
+  def transform(priority: :default, &block)
+    @delegate.add_transformation(self, priority: priority, &block)
+  end
+
+  def add_transformation(object, priority: :default, &block)
+    (@delegate.transformations[object] ||= { high: [], default: [], low: [] })[priority] << block
   end
 
   def copy(nodes: @nodes, collapsed: @collapsed)
@@ -157,6 +171,10 @@ class StringDoc
         duped_node.parent = self
       end
     }
+
+    @transformations = Hash[@transformations.map { |object, priorities|
+      [object, Hash[priorities.map { |priority, array| [priority, array.dup] }]]
+    }]
   end
 
   include Enumerable
@@ -372,8 +390,8 @@ class StringDoc
 
   # Converts the document to an xml string.
   #
-  def to_xml
-    render
+  def to_xml(context: self)
+    render(context: context)
   end
   alias :to_html :to_xml
   alias :to_s :to_xml
@@ -413,31 +431,28 @@ class StringDoc
     @nodes.empty?
   end
 
-  def render(doc = self, string = String.new)
+  def render(doc = self, string = String.new, context: self)
     if doc.collapsed && doc.empty?
       string << doc.collapsed
     else
-      doc.nodes.each do |node|
-        if node.is_a?(Node)
-          string << node.tag_open_start
+      if prioritized_transformations = @transformations.delete(doc)
+        prioritized_transformations.each_value do |transformations|
+          transformations.each do |transformation|
+            doc = context.instance_exec(doc, &transformation)
 
-          node.attributes.each_string do |attribute_string|
-            string << attribute_string
+            if doc.nil?
+              return
+            elsif doc.is_a?(String)
+              break
+            end
           end
-
-          string << node.tag_open_end
-
-          case node.children
-          when StringDoc
-            render(node.children, string)
-          else
-            string << node.children
-          end
-
-          string << node.tag_close
-        else
-          string << node.to_s
         end
+
+        return render(doc, string, context: context)
+      end
+
+      doc.nodes.each do |node|
+        render_node(node, string, context: context)
       end
 
       string
@@ -446,13 +461,61 @@ class StringDoc
 
   private
 
+  def render_node(node, string, context:)
+    if node.is_a?(Node)
+      if prioritized_transformations = @transformations.delete(node)
+        prioritized_transformations.each_value do |transformations|
+          transformations.each do |transformation|
+            node = context.instance_exec(node, &transformation)
+
+            if node.nil?
+              return
+            elsif node.is_a?(String)
+              break
+            end
+          end
+        end
+
+        return render_node(node, string, context: context)
+      end
+
+      string << node.tag_open_start
+
+      attributes = node.attributes
+      if prioritized_transformations = @transformations.delete(attributes)
+        prioritized_transformations.each_value do |transformations|
+          transformations.each do |transformation|
+            attributes = context.instance_exec(attributes, &transformation)
+          end
+        end
+      end
+
+      attributes.each_string do |attribute_string|
+        string << attribute_string
+      end
+
+      string << node.tag_open_end
+
+      case node.children
+      when StringDoc
+        render(node.children, string, context: context)
+      else
+        string << node.children
+      end
+
+      string << node.tag_close
+    else
+      string << node.to_s
+    end
+  end
+
   # Parses an Oga document into an array of +Node+ objects.
   #
   def parse(doc)
     nodes = []
 
     unless doc.is_a?(Oga::XML::Element) || !doc.respond_to?(:doctype) || doc.doctype.nil?
-      nodes << Node.new("<!DOCTYPE html>")
+      nodes << Node.new("<!DOCTYPE html>", delegate: @delegate)
     end
 
     self.class.breadth_first(doc) do |element|
@@ -460,15 +523,15 @@ class StringDoc
 
       unless significance.any? || self.class.contains_significant_child?(element)
         # Nothing inside of the node is significant, so collapse it to a single node.
-        nodes << Node.new(element.to_xml); next
+        nodes << Node.new(element.to_xml, delegate: @delegate); next
       end
 
       node = if significance.any?
         build_significant_node(element, significance)
       elsif element.is_a?(Oga::XML::Text) || element.is_a?(Oga::XML::Comment)
-        Node.new(element.to_xml)
+        Node.new(element.to_xml, delegate: @delegate)
       else
-        Node.new("<#{element.name}#{self.class.attributes_string(element)}")
+        Node.new("<#{element.name}#{self.class.attributes_string(element)}", delegate: @delegate)
       end
 
       if element.is_a?(Oga::XML::Element)
@@ -540,7 +603,7 @@ class StringDoc
         find_channel_for_binding!(element, attributes, labels)
       end
 
-      Node.new("<#{element.name}", Attributes.new(attributes), significance: significance, labels: labels, parent: self)
+      Node.new("<#{element.name}", Attributes.new(attributes, @delegate), significance: significance, labels: labels, parent: self, delegate: @delegate)
     else
       name = element.text.strip.match(/@[^\s]*\s*([a-zA-Z0-9\-_]*)/)[1]
       labels = significance.each_with_object({}) { |significant_type, labels_hash|
@@ -552,7 +615,7 @@ class StringDoc
         end
       }
 
-      Node.new(element.to_xml, significance: significance, parent: self, labels: labels)
+      Node.new(element.to_xml, significance: significance, parent: self, labels: labels, delegate: @delegate)
     end
   end
 

@@ -41,9 +41,10 @@ class StringDoc
 
     using Pakyow::Support::DeepDup
 
-    def initialize(tag_open_start = "", attributes = Attributes.new, tag_open_end = "", children = StringDoc.empty, tag_close = "", parent: nil, significance: [], labels: {})
-      @tag_open_start, @attributes, @tag_open_end, @children, @tag_close = tag_open_start, attributes, tag_open_end, children, tag_close
+    def initialize(tag_open_start = "", attributes = Attributes.new, tag_open_end = "", children = nil, tag_close = "", parent: nil, significance: [], labels: {}, delegate: self)
+      @tag_open_start, @attributes, @tag_open_end, @children, @tag_close = tag_open_start, attributes, tag_open_end, children || StringDoc.empty(delegate: delegate), tag_close
       @parent, @labels, @significance = parent, labels, significance
+      @delegate = delegate
     end
 
     # @api private
@@ -54,6 +55,10 @@ class StringDoc
       @significance = @significance.dup
       @attributes = @attributes.dup
       @children = @children.dup
+    end
+
+    def transform(priority: :default, &block)
+      @delegate.add_transformation(self, priority: priority, &block)
     end
 
     def copy(children: @children, labels: @labels, attributes: @attributes)
@@ -89,7 +94,7 @@ class StringDoc
     #
     def close(tag, child)
       tap do
-        @children = StringDoc.from_nodes(child)
+        @children = StringDoc.from_nodes(child, delegate: @delegate)
         @tag_open_end = tag ? ">" : ""
         @tag_close = (tag && !self.class.self_closing?(tag)) ? "</#{tag}>" : ""
       end
