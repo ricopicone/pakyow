@@ -14,7 +14,7 @@ module Pakyow
       action :componentize_forms do |state|
         if state.app.config.presenter.componentize
           state.view.object.each_significant_node(:form) do |form|
-            form.significance << :component
+            form.instance_variable_get(:@significance) << :component
             form.attributes[:"data-ui"] = :form
             form.set_label(:component, :form)
           end
@@ -24,7 +24,7 @@ module Pakyow
       action :componentize_navigator do |state|
         if state.app.config.presenter.componentize
           if html = state.view.object.find_first_significant_node(:html)
-            html.significance << :component
+            html.instance_variable_get(:@significance) << :component
             html.attributes[:"data-ui"] = :navigable
             html.set_label(:component, :navigable)
           end

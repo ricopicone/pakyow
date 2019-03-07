@@ -1,12 +1,7 @@
 # frozen_string_literal: true
 
-require "forwardable"
-
 require "pakyow/support/deep_dup"
 require "pakyow/support/inspectable"
-
-require "string_doc/node/objects/mutable"
-require "string_doc/node/objects/immutable"
 
 class StringDoc
   # String-based XML node.
@@ -36,48 +31,43 @@ class StringDoc
       end
     end
 
-    attr_reader :object, :tag_open_start, :tag_open_end, :tag_close
+    attr_reader :node, :parent, :children, :attributes, :tag_open_start, :tag_open_end, :tag_close, :significance, :labels
 
-    extend Forwardable
-    def_delegators :@object, :attributes, :children, :labels, :parent, :parent=, :significance
+    # @api private
+    attr_writer :parent
 
     include Pakyow::Support::Inspectable
-    inspectable :attributes, :children, :significance, :labels
+    inspectable :@attributes, :@children, :@significance, :@labels
 
     using Pakyow::Support::DeepDup
 
-    def initialize(tag_open_start = "", attributes = Attributes.new, tag_open_end = "", children = nil, tag_close = "", type: :mutable, parent: nil, significance: [], labels: {})
-      @type, @type_class = type, StringDoc::Node::Objects.const_get(Pakyow::Support.inflector.classify(type))
-      @object = @type_class.new(self, parent: parent, attributes: attributes, children: children || StringDoc.empty(type), labels: labels, significance: significance)
-      @tag_open_start, @tag_open_end, @tag_close = tag_open_start, tag_open_end, tag_close
+    def initialize(tag_open_start = "", attributes = Attributes.new, tag_open_end = "", children = StringDoc.empty, tag_close = "", parent: nil, significance: [], labels: {})
+      @tag_open_start, @attributes, @tag_open_end, @children, @tag_close = tag_open_start, attributes, tag_open_end, children, tag_close
+      @parent, @labels, @significance = parent, labels, significance
     end
 
     # @api private
     def initialize_copy(_)
       super
 
-      @object = @type_class.new(
-        self,
-        parent: parent,
-        attributes: attributes.dup,
-        children: children.dup,
-        labels: labels.deep_dup,
-        significance: significance.dup
-      )
+      @labels = @labels.deep_dup
+      @significance = @significance.dup
+      @attributes = @attributes.dup
+      @children = @children.dup
     end
 
-    # def copy(children: @children, labels: @labels, attributes: @attributes)
-    #   self.class.allocate.tap do |copy|
-    #     copy.instance_variable_set(:@tag_open_start, @tag_open_start)
-    #     copy.instance_variable_set(:@attributes, attributes)
-    #     copy.instance_variable_set(:@tag_open_end, @tag_open_end)
-    #     copy.instance_variable_set(:@children, children)
-    #     copy.instance_variable_set(:@tag_close, @tag_close)
-    #     copy.instance_variable_set(:@parent, @parent)
-    #     copy.instance_variable_set(:@labels, labels)
-    #     copy.instance_variable_set(:@significance, @significance)
-    #   end
-    # end
+    def copy(children: @children, labels: @labels, attributes: @attributes)
+      self.class.allocate.tap do |copy|
+        copy.instance_variable_set(:@tag_open_start, @tag_open_start)
+        copy.instance_variable_set(:@attributes, attributes)
+        copy.instance_variable_set(:@tag_open_end, @tag_open_end)
+        copy.instance_variable_set(:@children, children)
+        copy.instance_variable_set(:@tag_close, @tag_close)
+        copy.instance_variable_set(:@parent, @parent)
+        copy.instance_variable_set(:@labels, labels)
+        copy.instance_variable_set(:@significance, @significance)
+      end
+    end
 
     def empty?
       to_s.strip.empty?
@@ -85,21 +75,21 @@ class StringDoc
 
     def significant?(type = nil)
       if type
-        significance.include?(type.to_sym)
+        @significance.include?(type.to_sym)
       else
-        significance.any?
+        @significance.any?
       end
     end
 
     def significance?(*types)
-      (significance & types).any?
+      (@significance & types).any?
     end
 
-    # Close self with +tag+ and children.
+    # Close self with +tag+ and a child.
     #
-    def close(tag, children)
+    def close(tag, child)
       tap do
-        @object.children = children
+        @children = StringDoc.from_nodes(child)
         @tag_open_end = tag ? ">" : ""
         @tag_close = (tag && !self.class.self_closing?(tag)) ? "</#{tag}>" : ""
       end
@@ -113,6 +103,18 @@ class StringDoc
           self_with_children.concat(child_nodes)
         end
       end
+    end
+
+    # Replaces the current node.
+    #
+    def replace(replacement)
+      @parent.replace_node(self, replacement)
+    end
+
+    # Removes the node.
+    #
+    def remove
+      @parent.remove_node(self)
     end
 
     REGEX_TAGS = /<[^>]*>/
@@ -129,22 +131,76 @@ class StringDoc
       children.to_s
     end
 
+    # Replaces self's inner html, without making it available for further manipulation.
+    #
+    def html=(html)
+      @children = html.to_s
+    end
+
+    # Replaces self's children.
+    #
+    def replace_children(children)
+      @children.replace(children)
+    end
+
     # Returns the node's tagname.
     #
     def tagname
       @tag_open_start.gsub(/[^a-zA-Z]/, "")
     end
 
+    # Removes all children.
+    #
+    def clear
+      children.clear
+    end
+
+    # Inserts +node+ after +self+.
+    #
+    def after(node)
+      @parent.insert_after(node, self)
+    end
+
+    # Inserts +node+ before +self+.
+    #
+    def before(node)
+      @parent.insert_before(node, self)
+    end
+
+    # Appends +node+ as a child.
+    #
+    def append(node)
+      children.append(node)
+    end
+
+    # Prepends +node+ as a child.
+    #
+    def prepend(node)
+      children.prepend(node)
+    end
+
     # Returns the value for label with +name+.
     #
     def label(name)
-      labels[name.to_sym]
+      @labels[name.to_sym]
     end
 
     # Returns true if label exists with +name+.
     #
     def labeled?(name)
-      labels.key?(name.to_sym)
+      @labels.key?(name.to_sym)
+    end
+
+    # Sets the label with +name+ and +value+.
+    #
+    def set_label(name, value)
+      @labels[name.to_sym] = value
+    end
+
+    # Delete the label with +name+.
+    #
+    def delete_label(name)
+      @labels.delete(name.to_sym)
     end
 
     # Converts the node to an xml string.
@@ -158,9 +214,9 @@ class StringDoc
     def ==(other)
       other.is_a?(Node) &&
         @tag_open_start == other.tag_open_start &&
-        attributes == other.attributes &&
+        @attributes == other.attributes &&
         @tag_open_end == other.tag_open_end &&
-        children == other.children &&
+        @children == other.children &&
         @tag_close == other.tag_close
     end
 
@@ -172,107 +228,87 @@ class StringDoc
     def each_significant_node(type, &block)
       return enum_for(:each_significant_node, type) unless block_given?
 
-      if children.is_a?(StringDoc)
-        children.each_significant_node(type, &block)
+      if @children.is_a?(StringDoc)
+        @children.each_significant_node(type, &block)
       end
     end
 
     def each_significant_node_without_descending(type, &block)
       return enum_for(:each_significant_node_without_descending, type) unless block_given?
 
-      if children.is_a?(StringDoc)
-        children.each_significant_node_without_descending(type, &block)
+      if @children.is_a?(StringDoc)
+        @children.each_significant_node_without_descending(type, &block)
       end
     end
 
     def each_significant_node_with_name(type, name, &block)
       return enum_for(:each_significant_node_with_name, type, name) unless block_given?
 
-      if children.is_a?(StringDoc)
-        children.each_significant_node_with_name(type, name, &block)
+      if @children.is_a?(StringDoc)
+        @children.each_significant_node_with_name(type, name, &block)
       end
     end
 
     def each_significant_node_with_name_without_descending(type, name, &block)
       return enum_for(:each_significant_node_with_name_without_descending, type, name) unless block_given?
 
-      if children.is_a?(StringDoc)
-        children.each_significant_node_with_name_without_descending(type, name, &block)
+      if @children.is_a?(StringDoc)
+        @children.each_significant_node_with_name_without_descending(type, name, &block)
       end
     end
 
     def find_first_significant_node(type)
-      if children.is_a?(StringDoc)
-        children.find_first_significant_node(type)
+      if @children.is_a?(StringDoc)
+        @children.find_first_significant_node(type)
       else
         nil
       end
     end
 
     def find_first_significant_node_without_descending(type)
-      if children.is_a?(StringDoc)
-        children.find_first_significant_node_without_descending(type)
+      if @children.is_a?(StringDoc)
+        @children.find_first_significant_node_without_descending(type)
       else
         nil
       end
     end
 
     def find_significant_nodes(type)
-      if children.is_a?(StringDoc)
-        children.find_significant_nodes(type)
+      if @children.is_a?(StringDoc)
+        @children.find_significant_nodes(type)
       else
         []
       end
     end
 
     def find_significant_nodes_without_descending(type)
-      if children.is_a?(StringDoc)
-        children.find_significant_nodes_without_descending(type)
+      if @children.is_a?(StringDoc)
+        @children.find_significant_nodes_without_descending(type)
       else
         []
       end
     end
 
     def find_significant_nodes_with_name(type, name)
-      if children.is_a?(StringDoc)
-        children.find_significant_nodes_with_name(type, name)
+      if @children.is_a?(StringDoc)
+        @children.find_significant_nodes_with_name(type, name)
       else
         []
       end
     end
 
     def find_significant_nodes_with_name_without_descending(type, name)
-      if children.is_a?(StringDoc)
-        children.find_significant_nodes_with_name_without_descending(type, name)
+      if @children.is_a?(StringDoc)
+        @children.find_significant_nodes_with_name_without_descending(type, name)
       else
         []
-      end
-    end
-
-    %i(replace remove html= replace_children clear after before append prepend set_label delete_label).each do |action|
-      if action.to_s.end_with?("=")
-        class_eval <<~CODE, __FILE__, __LINE__ + 1
-          def #{action}(arg)
-            tap do
-              @object.#{action} arg
-            end
-          end
-        CODE
-      else
-        class_eval <<~CODE, __FILE__, __LINE__ + 1
-          def #{action}(*args)
-            tap do
-              @object.#{action}(*args)
-            end
-          end
-        CODE
       end
     end
 
     private
 
     def string_nodes
-      [@tag_open_start, attributes, @tag_open_end, children, @tag_close]
+      [@tag_open_start, @attributes, @tag_open_end, @children, @tag_close]
     end
 
     def child_nodes

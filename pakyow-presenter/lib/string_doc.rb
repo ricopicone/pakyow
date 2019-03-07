@@ -1,15 +1,10 @@
 # frozen_string_literal: true
 
 require "cgi"
-require "forwardable"
 
 require "oga"
 
-require "pakyow/support/inflector"
 require "pakyow/support/silenceable"
-
-require "string_doc/objects/mutable"
-require "string_doc/objects/immutable"
 
 # String-based XML document optimized for fast manipulation and rendering.
 #
@@ -34,12 +29,9 @@ class StringDoc
   class << self
     # Creates an empty doc.
     #
-    def empty(type)
+    def empty
       allocate.tap do |doc|
-        type_class = StringDoc::Objects.const_get(Pakyow::Support.inflector.classify(type))
-        doc.instance_variable_set(:@object, type_class.new([]))
-        doc.instance_variable_set(:@type_class, type_class)
-        doc.instance_variable_set(:@type, type)
+        doc.instance_variable_set(:@nodes, [])
         doc.instance_variable_set(:@collapsed, nil)
       end
     end
@@ -48,6 +40,19 @@ class StringDoc
     #
     def significant(name, object)
       significant_types[name] = object
+    end
+
+    # Creates a +StringDoc+ from an array of +Node+ objects.
+    #
+    def from_nodes(nodes)
+      allocate.tap do |instance|
+        instance.instance_variable_set(:@nodes, nodes)
+        instance.instance_variable_set(:@collapsed, nil)
+
+        nodes.each do |node|
+          node.parent = instance
+        end
+      end
     end
 
     # Yields nodes from an oga document, breadth-first.
@@ -109,36 +114,49 @@ class StringDoc
     def significant_types
       @significant_types ||= {}
     end
+
+    # @api private
+    def nodes_from_doc_or_string(doc_node_or_string)
+      case doc_node_or_string
+      when StringDoc
+        doc_node_or_string.nodes
+      when Node
+        [doc_node_or_string]
+      else
+        StringDoc.new(doc_node_or_string.to_s).nodes
+      end
+    end
   end
 
   include Pakyow::Support::Silenceable
 
-  # @api private
-  attr_reader :collapsed, :object, :type
-
-  extend Forwardable
-  def_delegators :@object, :nodes
+  # Array of +Node+ objects.
+  #
+  attr_reader :nodes, :collapsed
 
   # Creates a +StringDoc+ from an html string.
   #
-  def initialize(html, type: :mutable)
-    @type, @collapsed = type, nil
-    @type_class = StringDoc::Objects.const_get(Pakyow::Support.inflector.classify(type))
-    @object = @type_class.new(parse(Oga.parse_html(html)))
+  def initialize(html)
+    @nodes = parse(Oga.parse_html(html))
+    @collapsed = nil
   end
 
-  # def copy(nodes: @nodes, collapsed: @collapsed)
-  #   self.class.allocate.tap do |copy|
-  #     copy.instance_variable_set(:@nodes, nodes)
-  #     copy.instance_variable_set(:@collapsed, collapsed)
-  #   end
-  # end
+  def copy(nodes: @nodes, collapsed: @collapsed)
+    self.class.allocate.tap do |copy|
+      copy.instance_variable_set(:@nodes, nodes)
+      copy.instance_variable_set(:@collapsed, collapsed)
+    end
+  end
 
   # @api private
   def initialize_copy(_)
     super
 
-    @object = from_nodes(nodes.map(&:dup))
+    @nodes = @nodes.map { |node|
+      node.dup.tap do |duped_node|
+        duped_node.parent = self
+      end
+    }
   end
 
   include Enumerable
@@ -146,7 +164,7 @@ class StringDoc
   def each(&block)
     return enum_for(:each) unless block_given?
 
-    nodes.each do |node|
+    @nodes.each do |node|
       yield node
 
       if node.children.is_a?(StringDoc)
@@ -172,11 +190,11 @@ class StringDoc
   def each_significant_node_without_descending(type, &block)
     return enum_for(:each_significant_node_without_descending, type) unless block_given?
 
-    nodes.each do |node|
+    @nodes.each do |node|
       if node.is_a?(Node)
         if node.significant?(type)
           yield node
-        elsif node.children.is_a?(self.class)
+        elsif node.children.is_a?(StringDoc)
           node.children.each_significant_node_without_descending(type, &block)
         end
       end
@@ -269,47 +287,130 @@ class StringDoc
     end
   end
 
+  # Clears all nodes.
+  #
+  def clear
+    tap do
+      @nodes.clear
+    end
+  end
+  alias remove clear
+
+  # Replaces the current document.
+  #
+  # Accepts a +StringDoc+ or XML +String+.
+  #
+  def replace(doc_or_string)
+    tap do
+      @nodes = self.class.nodes_from_doc_or_string(doc_or_string)
+    end
+  end
+
+  # Appends to this document.
+  #
+  # Accepts a +StringDoc+ or XML +String+.
+  #
+  def append(doc_or_string)
+    tap do
+      @nodes.concat(self.class.nodes_from_doc_or_string(doc_or_string))
+    end
+  end
+
+  # Prepends to this document.
+  #
+  # Accepts a +StringDoc+ or XML +String+.
+  #
+  def prepend(doc_or_string)
+    tap do
+      @nodes.unshift(*self.class.nodes_from_doc_or_string(doc_or_string))
+    end
+  end
+
+  # Inserts a node after another node contained in this document.
+  #
+  def insert_after(node_to_insert, after_node)
+    tap do
+      if after_node_index = @nodes.index(after_node)
+        @nodes.insert(after_node_index + 1, *self.class.nodes_from_doc_or_string(node_to_insert))
+      end
+    end
+  end
+
+  # Inserts a node before another node contained in this document.
+  #
+  def insert_before(node_to_insert, before_node)
+    tap do
+      if before_node_index = @nodes.index(before_node)
+        @nodes.insert(before_node_index, *self.class.nodes_from_doc_or_string(node_to_insert))
+      end
+    end
+  end
+
+  # Removes a node from the document.
+  #
+  def remove_node(node_to_delete)
+    tap do
+      @nodes.delete_if { |node|
+        node.object_id == node_to_delete.object_id
+      }
+    end
+  end
+
+  # Replaces a node from the document.
+  #
+  def replace_node(node_to_replace, replacement_node)
+    tap do
+      if replace_node_index = @nodes.index(node_to_replace)
+        nodes_to_insert = self.class.nodes_from_doc_or_string(replacement_node).map { |node|
+          node.instance_variable_set(:@parent, self); node
+        }
+        @nodes.insert(replace_node_index + 1, *nodes_to_insert)
+        @nodes.delete_at(replace_node_index)
+      end
+    end
+  end
+
   # Converts the document to an xml string.
   #
   def to_xml
     render
   end
-  alias to_html to_xml
-  alias to_s to_xml
+  alias :to_html :to_xml
+  alias :to_s :to_xml
 
   def ==(other)
-    other.is_a?(self.class) && @object.nodes == other.object.nodes
+    other.is_a?(StringDoc) && @nodes == other.nodes
   end
 
   def collapse(*significance)
     if significance?(*significance)
-      nodes.each do |node|
+      @nodes.each do |node|
         node.children.collapse(*significance)
       end
     else
       @collapsed = to_xml
-      @object = self.class.empty(@type)
+      @nodes = []
     end
   end
 
   def significance?(*significance)
-    nodes.any? { |node|
+    @nodes.any? { |node|
       node.significance?(*significance) || node.children.significance?(*significance)
     }
   end
 
   def remove_empty_nodes
-    nodes.each do |node|
+    @nodes.each do |node|
       node.children.remove_empty_nodes
     end
 
     unless empty?
-      nodes.delete_if(&:empty?)
+      @nodes.delete_if(&:empty?)
     end
   end
 
   def empty?
-    nodes.empty?
+    @nodes.empty?
   end
 
   def render(doc = self, string = String.new)
@@ -343,25 +444,15 @@ class StringDoc
     end
   end
 
-  %i(clear remove replace append prepend insert_after insert_before remove_node replace_node).each do |action|
-    class_eval <<~CODE, __FILE__, __LINE__ + 1
-      def #{action}(*args)
-        tap do
-          @object.#{action}(*args)
-        end
-      end
-    CODE
-  end
-
   private
 
-  # Parses an Oga document into an array of node objects.
+  # Parses an Oga document into an array of +Node+ objects.
   #
   def parse(doc)
     nodes = []
 
     unless doc.is_a?(Oga::XML::Element) || !doc.respond_to?(:doctype) || doc.doctype.nil?
-      nodes << Node.new("<!DOCTYPE html>", type: @type)
+      nodes << Node.new("<!DOCTYPE html>")
     end
 
     self.class.breadth_first(doc) do |element|
@@ -369,19 +460,19 @@ class StringDoc
 
       unless significance.any? || self.class.contains_significant_child?(element)
         # Nothing inside of the node is significant, so collapse it to a single node.
-        nodes << Node.new(element.to_xml, type: @type); next
+        nodes << Node.new(element.to_xml); next
       end
 
       node = if significance.any?
         build_significant_node(element, significance)
       elsif element.is_a?(Oga::XML::Text) || element.is_a?(Oga::XML::Comment)
-        Node.new(element.to_xml, type: @type)
+        Node.new(element.to_xml)
       else
-        Node.new("<#{element.name}#{self.class.attributes_string(element)}", type: @type)
+        Node.new("<#{element.name}#{self.class.attributes_string(element)}")
       end
 
       if element.is_a?(Oga::XML::Element)
-        node.close(element.name, from_nodes(parse(element)))
+        node.close(element.name, parse(element))
       end
 
       nodes << node
@@ -414,13 +505,13 @@ class StringDoc
   }
 
   def attributes_hash(element)
-    self.class.attributes(element).each_with_object({}) { |attribute, elements|
+    StringDoc.attributes(element).each_with_object({}) { |attribute, elements|
       elements[attribute.name.to_sym] = CGI.escape_html(attribute.value.to_s)
     }
   end
 
   def labels_hash(element)
-    self.class.attributes(element).dup.each_with_object({}) { |attribute, labels|
+    StringDoc.attributes(element).dup.each_with_object({}) { |attribute, labels|
       attribute_name = attribute.name.to_sym
 
       if LABEL_ATTRS.include?(attribute_name)
@@ -449,7 +540,7 @@ class StringDoc
         find_channel_for_binding!(element, attributes, labels)
       end
 
-      Node.new("<#{element.name}", Attributes.new(attributes, @type), type: @type, significance: significance, labels: labels, parent: self)
+      Node.new("<#{element.name}", Attributes.new(attributes), significance: significance, labels: labels, parent: self)
     else
       name = element.text.strip.match(/@[^\s]*\s*([a-zA-Z0-9\-_]*)/)[1]
       labels = significance.each_with_object({}) { |significant_type, labels_hash|
@@ -461,7 +552,7 @@ class StringDoc
         end
       }
 
-      Node.new(element.to_xml, type: @type, significance: significance, parent: self, labels: labels)
+      Node.new(element.to_xml, significance: significance, parent: self, labels: labels)
     end
   end
 
@@ -508,18 +599,5 @@ class StringDoc
     end
 
     channel
-  end
-
-  def from_nodes(nodes)
-    self.class.allocate.tap do |instance|
-      instance.instance_variable_set(:@object, @type_class.new(nodes))
-      instance.instance_variable_set(:@type_class, @type_class)
-      instance.instance_variable_set(:@type, @type)
-      instance.instance_variable_set(:@collapsed, nil)
-
-      nodes.each do |node|
-        node.parent = instance#.object
-      end
-    end
   end
 end
