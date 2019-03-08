@@ -1,7 +1,5 @@
 # frozen_string_literal: true
 
-require "forwardable"
-
 module Pakyow
   module Presenter
     # Wraps one or more versioned view objects. Provides an interface for manipulating multiple
@@ -47,8 +45,8 @@ module Pakyow
 
         tap do
           if view = version_named(version)
-            view.object.delete_label(:version)
-            view.object.set_label(:used, true)
+            view.object = view.delegate.delete_node_label(view.object, :version)
+            view.object = view.delegate.set_node_label(view.object, :used, true)
             self.versioned_view = view
             cleanup
           else
@@ -83,16 +81,16 @@ module Pakyow
         @used == true
       end
 
-      protected
+      private
 
       def cleanup(mode = nil)
         if mode == :all
           @versions.each(&:remove)
           @versions = []
         else
-          @working.object.delete_label(:version)
+          # @working.object = @delegate.delete_node_label(@working.object, :version)
           @versions.dup.each do |view_to_remove|
-            unless view_to_remove == @working
+            unless view_to_remove.equal?(@working)
               view_to_remove.remove
               @versions.delete(view_to_remove)
             end
@@ -105,6 +103,7 @@ module Pakyow
       end
 
       def versioned_view=(view)
+        @delegate = view.delegate
         @working = view
         @object = view.object
         @version = view.version

@@ -114,16 +114,6 @@ RSpec.describe "view transformation via presenter" do
     end
   end
 
-  describe "before" do
-    before do
-      part.before("hi ")
-    end
-
-    it "inserts before" do
-      expect(presenter.to_s).to include("hi <h1 data-b=\"title\">title goes here</h1>")
-    end
-  end
-
   describe "replace" do
     before do
       part.replace("hi")

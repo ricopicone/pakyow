@@ -14,9 +14,11 @@ module Pakyow
 
           if mode
             mode = mode.to_sym
-            renderer.presenter.view.object.each_significant_node(:mode).select { |node|
+            renderer.presenter.view.delegate.each_significant_node(:mode, renderer.presenter.view.object).select { |node|
               node.label(:mode) != mode
-            }.each(&:remove)
+            }.each do |node_to_remove|
+              renderer.presenter.view.delegate.remove_node(node_to_remove)
+            end
           end
         end
       end

@@ -44,7 +44,7 @@ module Pakyow
       using Support::Refinements::Array::Ensurable
 
       extend Forwardable
-      def_delegators :@object, :type, :text, :html, :label, :labeled?
+      def_delegators :@object, :type, :label, :labeled?
 
       # @api private
       attr_reader :delegate, :object
@@ -72,7 +72,7 @@ module Pakyow
         if @object
           original = @object
           @object = @object.dup
-          @delegate.replace_node(original, @object)
+          @delegate.node_did_mutate(original, @object)
 
           if @object.respond_to?(:attributes)
             self.attributes = @object.attributes
@@ -125,7 +125,7 @@ module Pakyow
       # Finds a form with a binding matching +name+.
       #
       def form(name)
-        @object.each_significant_node(:form) do |form_node|
+        @delegate.each_significant_node(:form, @object) do |form_node|
           return Form.from_object(@delegate, form_node) if form_node.label(:binding) == name
         end
 
@@ -135,7 +135,7 @@ module Pakyow
       # Returns all forms.
       #
       def forms
-        @object.each_significant_node(:form).map { |node|
+        @delegate.each_significant_node(:form, @object).map { |node|
           Form.from_object(@delegate, node)
         }
       end
@@ -143,7 +143,7 @@ module Pakyow
       # Returns all components.
       #
       def components
-        @object.each_significant_node_without_descending(:component).map { |node|
+        @delegate.each_significant_node_without_descending(:component, @object).map { |node|
           View.from_object(@delegate, node)
         }
       end
@@ -161,7 +161,7 @@ module Pakyow
       # Returns a view for the +<head>+ node.
       #
       def head
-        if head_node = @object.find_first_significant_node(:head)
+        if head_node = @delegate.find_first_significant_node(:head, @object)
           View.from_object(@delegate, head_node)
         else
           nil
@@ -171,7 +171,7 @@ module Pakyow
       # Returns a view for the +<body>+ node.
       #
       def body
-        if body_node = @object.find_first_significant_node(:body)
+        if body_node = @delegate.find_first_significant_node(:body, @object)
           View.from_object(@delegate, body_node)
         else
           nil
@@ -181,7 +181,7 @@ module Pakyow
       # Returns a view for the +<title>+ node.
       #
       def title
-        if title_node = @object.find_first_significant_node(:title)
+        if title_node = @delegate.find_first_significant_node(:title, @object)
           View.from_object(@delegate, title_node)
         else
           nil
@@ -216,7 +216,9 @@ module Pakyow
               end
             end
 
-            removals.each(&:remove)
+            removals.each do |removal|
+              @delegate.remove_node(removal)
+            end
           end
 
           yield self, object if block_given?
@@ -237,18 +239,20 @@ module Pakyow
 
               if object.include?(binding_name)
                 value = if object.is_a?(Binder)
-                  object.__content(binding_name, binding)
+                  object.__content(binding_name, @delegate, binding)
                 else
                   object[binding_name]
                 end
 
-                bind_value_to_node(value, binding)
-                binding.set_label(:used, true)
+                binding = bind_value_to_node(value, binding)
+                binding = @delegate.set_node_label(binding, :used, true)
               end
             end
 
-            attributes[:"data-id"] = object[:id]
-            self.object.set_label(:used, true)
+            # TODO: the next line is causing us to lose a reference or something...
+            # so when we change attributes we replace @object, which is the correct thing to do...
+            # attributes[:"data-id"] = object[:id]
+            # @object = @delegate.set_node_label(@object, :used, true)
           end
         end
       end
@@ -257,7 +261,7 @@ module Pakyow
       #
       def append(view_or_string)
         tap do
-          @object.append(view_from_view_or_string(view_or_string).object)
+          mutate_with_view_or_string(view_or_string, :append_to_node)
         end
       end
 
@@ -265,7 +269,7 @@ module Pakyow
       #
       def prepend(view_or_string)
         tap do
-          @object.prepend(view_from_view_or_string(view_or_string).object)
+          mutate_with_view_or_string(view_or_string, :prepend_to_node)
         end
       end
 
@@ -273,15 +277,7 @@ module Pakyow
       #
       def after(view_or_string)
         tap do
-          @object.after(view_from_view_or_string(view_or_string).object)
-        end
-      end
-
-      # Inserts a view or string before +self+.
-      #
-      def before(view_or_string)
-        tap do
-          @object.before(view_from_view_or_string(view_or_string).object)
+          mutate_with_view_or_string(view_or_string, :insert_after_node)
         end
       end
 
@@ -289,7 +285,7 @@ module Pakyow
       #
       def replace(view_or_string)
         tap do
-          @object.replace(view_from_view_or_string(view_or_string).object)
+          mutate_with_view_or_string(view_or_string, :replace_node)
         end
       end
 
@@ -297,7 +293,8 @@ module Pakyow
       #
       def remove
         tap do
-          @object.remove
+          @delegate.remove_node(@object)
+          @object = nil
         end
       end
 
@@ -305,14 +302,14 @@ module Pakyow
       #
       def clear
         tap do
-          @object.clear
+          @delegate.remove_node_children(@object)
         end
       end
 
       # Safely sets the html value of +self+.
       #
       def html=(html)
-        @object.html = ensure_html_safety(html.to_s)
+        @object = @delegate.set_node_html(@object, ensure_html_safety(html.to_s))
       end
 
       # Returns true if +self+ is a binding.
@@ -342,7 +339,7 @@ module Pakyow
       # Returns true if +self+ equals +other+.
       #
       def ==(other)
-        other.is_a?(self.class) && @object == other.object
+        other.is_a?(self.class) && @delegate == other.delegate && @object == other.object
       end
 
       # Returns attributes object for +self+.
@@ -363,6 +360,14 @@ module Pakyow
       #
       def version
         (label(:version) || VersionedView::DEFAULT_VERSION).to_sym
+      end
+
+      def html
+        @delegate.node_html(@object)
+      end
+
+      def text
+        @delegate.node_text(@object)
       end
 
       def render
@@ -412,7 +417,7 @@ module Pakyow
             :each_significant_node_without_descending
           end
 
-          @object.send(method, :binding) do |node|
+          @delegate.send(method, :binding, @object) do |node|
             if binding_prop?(node)
               yield node
             end
@@ -456,7 +461,7 @@ module Pakyow
       # @api private
       def find_partials(partials, found = [])
         found.tap do
-          @object.each_significant_node(:partial) do |node|
+          @delegate.each_significant_node(:partial, @object) do |node|
             if replacement = partials[node.label(:partial)]
               found << node.label(:partial)
               replacement.find_partials(partials, found)
@@ -468,7 +473,7 @@ module Pakyow
       # @api private
       def mixin(partials)
         tap do
-          @object.each_significant_node(:partial) do |partial_node|
+          @delegate.each_significant_node(:partial, @object) do |partial_node|
             if replacement = partials[partial_node.label(:partial)]
               partial_node.replace(replacement.mixin(partials).object)
             end
@@ -491,15 +496,24 @@ module Pakyow
 
       private
 
+      def mutate_with_view_or_string(view_or_string, mutation)
+        @delegate.public_send(mutation, @object, view_from_view_or_string(view_or_string).delegate)
+      end
+
       def bind_value_to_node(value, node)
         tag = node.tagname
-        unless StringDoc::Node.without_value?(tag)
+        if StringDoc::Node.without_value?(tag)
+          node
+        else
           value = String(value)
-
           if StringDoc::Node.self_closing?(tag)
-            node.attributes[:value] = ensure_html_safety(value) if node.attributes[:value].nil?
+            if node.attributes[:value].nil?
+              @delegate.set_node_attribute(node, :value, ensure_html_safety(value))
+            else
+              node
+            end
           else
-            node.html = ensure_html_safety(value)
+            @delegate.set_node_html(node, ensure_html_safety(value))
           end
         end
       end

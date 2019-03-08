@@ -115,7 +115,7 @@ module Pakyow
                   build_endpoint_for_node(node, endpoints, params)
                 end
               else
-                @view.object.each_significant_node(:endpoint) do |node|
+                @view.delegate.each_significant_node(:endpoint, @view.object) do |node|
                   if (within_binding && node.significant?(:within_binding)) || (!within_binding && !node.significant?(:within_binding))
                     build_endpoint_for_node(node, endpoints, params)
                   end
@@ -159,7 +159,7 @@ module Pakyow
 
           def wrap_endpoint_for_removal(endpoint)
             if endpoint[:node].tagname != "form"
-              View.from_object(endpoint[:node]).replace(
+              View.from_object(@view.delegate, endpoint[:node]).replace(
                 View.new(
                   <<~HTML
                     <form action="#{endpoint[:path]}" method="post" data-ui="confirmable">
@@ -174,8 +174,8 @@ module Pakyow
           end
 
           def setup_endpoint(endpoint)
-            endpoint_view = View.from_object(endpoint[:node])
-            endpoint_action_view = View.from_object(find_endpoint_action_node(endpoint[:node]))
+            endpoint_view = View.from_object(@view.delegate, endpoint[:node])
+            endpoint_action_view = View.from_object(@view.delegate, find_endpoint_action_node(endpoint[:node]))
 
             if endpoint_action_view.object.tagname == "a"
               if endpoint[:path]
@@ -194,8 +194,8 @@ module Pakyow
           end
 
           def find_endpoint_action_node(endpoint_node)
-            endpoint_node.find_first_significant_node_without_descending(
-              :endpoint_action
+            @view.delegate.find_first_significant_node_without_descending(
+              :endpoint_action, endpoint_node
             ) || endpoint_node
           end
         end

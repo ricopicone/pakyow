@@ -20,12 +20,22 @@ RSpec.describe "StringDoc#replace_node_children" do
 
     context "replacement is a StringDoc" do
       let :replacement do
-        StringDoc.new("<div>replacement</div>")
+        StringDoc.new(
+          <<~HTML
+            <div>
+              <p binding="title">replacement1</p>
+            </div>
+
+            <div>
+              <p binding="title">replacement2</p>
+            </div>
+          HTML
+        )
       end
 
       it "replaces the node" do
         doc.replace_node_children(node, replacement)
-        expect(doc.to_s).to eq("<article data-b=\"post\" data-c=\"article\"><div>replacement</div></article>")
+        expect(doc.to_s).to eq("<article data-b=\"post\" data-c=\"article\"><div><p data-b=\"title\">replacement1</p></div><div><p data-b=\"title\">replacement2</p></div></article>")
       end
 
       it "returns self" do
@@ -50,12 +60,20 @@ RSpec.describe "StringDoc#replace_node_children" do
 
     context "replacement is another object" do
       let :replacement do
-        "<div>replacement</div>"
+        <<~HTML
+          <div>
+            <p binding="title">replacement1</p>
+          </div>
+
+          <div>
+            <p binding="title">replacement2</p>
+          </div>
+        HTML
       end
 
       it "replaces the node" do
         doc.replace_node_children(node, replacement)
-        expect(doc.to_s).to eq("<article data-b=\"post\" data-c=\"article\"><div>replacement</div></article>")
+        expect(doc.to_s).to eq("<article data-b=\"post\" data-c=\"article\"><div><p data-b=\"title\">replacement1</p></div><div><p data-b=\"title\">replacement2</p></div></article>")
       end
 
       it "returns self" do

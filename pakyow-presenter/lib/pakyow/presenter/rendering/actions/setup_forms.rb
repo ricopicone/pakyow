@@ -31,7 +31,7 @@ module Pakyow
                 setup_authenticity_token(form, renderer)
               end
 
-              form.view.object.set_label(:__form_embed, true)
+              form.view.object = form.view.delegate.set_node_label(form.view.object, :__form_embed, true)
             end
           end
         end
@@ -84,10 +84,18 @@ module Pakyow
         end
 
         def setup_form_id(form)
-          form.view.label(:metadata)[:id] ||= SecureRandom.hex(24)
+          unless form.view.label(:metadata)[:id]
+            metadata = form.view.label(:metadata).dup
+            metadata[:id] = SecureRandom.hex(24)
+            form.view.object = form.view.delegate.set_node_label(
+              form.view.object, :metadata, metadata
+            )
+          end
 
           unless form.view.labeled?(FormPresenter::ID_LABEL)
-            form.view.object.set_label(FormPresenter::ID_LABEL, form.view.label(:metadata)[:id])
+            form.view.object = form.view.delegate.set_node_label(
+              form.view.object, FormPresenter::ID_LABEL, form.view.label(:metadata)[:id]
+            )
           end
         end
       end

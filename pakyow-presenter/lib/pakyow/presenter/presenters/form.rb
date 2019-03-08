@@ -43,7 +43,8 @@ module Pakyow
         if method_override_required?(method)
           @view.attrs[:method] = "post"
 
-          find_or_create_method_override_input.attributes[:value] = method
+          override_node = find_or_create_method_override_input
+          @view.delegate.set_node_attribute(override_node, :value, method)
         else
           @view.attrs[:method] = method
         end
@@ -105,7 +106,7 @@ module Pakyow
 
         yield self if block_given?
         @view.bind(object)
-        @view.object.set_label(:__form_setup, true)
+        @view.object = @view.delegate.set_node_label(@view.object, :__form_setup, true)
         self
       end
 
@@ -164,10 +165,10 @@ module Pakyow
       end
 
       def setup_field_names(view = @view)
-        view.object.children.each_significant_node_without_descending(:binding) do |binding_node|
+        view.delegate.each_significant_node_without_descending(:binding, view.object) do |binding_node|
           if Form::FIELD_TAGS.include?(binding_node.tagname)
             if binding_node.attributes[:name].to_s.empty?
-              binding_node.attributes[:name] = "#{view.object.label(:binding)}[#{binding_node.label(:binding)}]"
+              binding_node = view.delegate.set_node_attribute(binding_node, :name, "#{view.object.label(:binding)}[#{binding_node.label(:binding)}]")
             end
 
             if binding_node.tagname == "select" && binding_node.attributes[:multiple]
@@ -178,7 +179,7 @@ module Pakyow
       end
 
       def connect_labels(view = @view)
-        view.object.children.each_significant_node_without_descending(:label) do |label_node|
+        view.delegate.each_significant_node_without_descending(:label, view.object) do |binding_node|
           if label_node.attributes[:for] && input = view.find(*label_node.attributes[:for].to_s.split("."))
             connect_input_to_label(input, label_node)
           end
@@ -197,9 +198,9 @@ module Pakyow
       end
 
       def use_binding_nodes
-        @view.object.set_label(:used, true)
-        @view.object.children.each_significant_node(:binding) do |object|
-          object.set_label(:used, true)
+        @view.object = @view.delegate.set_node_label(@view.object, :used, true)
+        @view.delegate.each_significant_node(:binding, @view.object) do |object|
+          @view.delegate.set_node_label(object, :used, true)
         end
       end
 
@@ -227,9 +228,9 @@ module Pakyow
       end
 
       def find_or_create_method_override_input
-        unless input = @view.object.find_first_significant_node_without_descending(:method_override)
+        unless input = @view.delegate.find_first_significant_node_without_descending(:method_override, @view.object)
           @view.prepend(method_override_input)
-          input = @view.object.find_first_significant_node_without_descending(:method_override)
+          input = @view.delegate.find_first_significant_node_without_descending(:method_override, @view.object)
         end
 
         input
@@ -270,7 +271,8 @@ module Pakyow
       end
 
       def create_select_option(value, view)
-        option_binding = if option = view.object.find_first_significant_node(:option)
+        pp view.class
+        option_binding = if option = view.delegate.find_first_significant_node(:option, view.object)
           option.label(:binding)
         else
           nil

@@ -90,7 +90,11 @@ module Pakyow
         if attribute_type == ATTRIBUTE_TYPE_BOOLEAN
           attributes.key?(attribute)
         else
-          attributes[attribute] ||= attribute_type.new(self.class.default_value_for_attribute(attribute))
+          unless attributes[attribute]
+            self[attribute] = attribute_type.new(self.class.default_value_for_attribute(attribute))
+          end
+
+          attributes[attribute]
         end
       end
 

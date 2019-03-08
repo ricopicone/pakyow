@@ -10,12 +10,22 @@ RSpec.describe "StringDoc#replace_node" do
   context "node to replace exists" do
     context "replacement is a StringDoc" do
       let :replacement do
-        StringDoc.new("<div>replacement</div>")
+        StringDoc.new(
+          <<~HTML
+            <div>
+              <p binding="title">replacement1</p>
+            </div>
+
+            <div>
+              <p binding="title">replacement2</p>
+            </div>
+          HTML
+        )
       end
 
       it "replaces the node" do
         doc.replace_node(doc.nodes[2], replacement)
-        expect(doc.to_s).to eq("<div>foo</div><div>bar</div><div>replacement</div>")
+        expect(doc.to_s).to eq("<div>foo</div><div>bar</div><div><p data-b=\"title\">replacement1</p></div><div><p data-b=\"title\">replacement2</p></div>")
       end
 
       it "returns self" do
@@ -40,12 +50,20 @@ RSpec.describe "StringDoc#replace_node" do
 
     context "replacement is another object" do
       let :replacement do
-        "<div>replacement</div>"
+        <<~HTML
+          <div>
+            <p binding="title">replacement1</p>
+          </div>
+
+          <div>
+            <p binding="title">replacement2</p>
+          </div>
+        HTML
       end
 
       it "replaces the node" do
         doc.replace_node(doc.nodes[2], replacement)
-        expect(doc.to_s).to eq("<div>foo</div><div>bar</div><div>replacement</div>")
+        expect(doc.to_s).to eq("<div>foo</div><div>bar</div><div><p data-b=\"title\">replacement1</p></div><div><p data-b=\"title\">replacement2</p></div>")
       end
 
       it "returns self" do

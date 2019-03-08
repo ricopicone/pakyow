@@ -7,13 +7,13 @@ module Pakyow
 
       action :cleanup_prototype_nodes do |state|
         unless Pakyow.env?(:prototype)
-          state.view.object.each_significant_node(:prototype).map(&:itself).each(&:remove)
+          state.view.delegate.each_significant_node(:prototype, state.view.object).map(&:itself).each(&:remove)
         end
       end
 
       action :componentize_forms do |state|
         if state.app.config.presenter.componentize
-          state.view.object.each_significant_node(:form) do |form|
+          state.view.delegate.each_significant_node(:form, state.view.object) do |form|
             form.instance_variable_get(:@significance) << :component
             form.attributes[:"data-ui"] = :form
             form.set_label(:component, :form)
@@ -23,7 +23,7 @@ module Pakyow
 
       action :componentize_navigator do |state|
         if state.app.config.presenter.componentize
-          if html = state.view.object.find_first_significant_node(:html)
+          if html = state.view.delegate.find_first_significant_node(:html, state.view.object)
             html.instance_variable_get(:@significance) << :component
             html.attributes[:"data-ui"] = :navigable
             html.set_label(:component, :navigable)
@@ -32,7 +32,7 @@ module Pakyow
       end
 
       action :embed_authenticity, before: :embed_assets do |state|
-        if state.app.config.presenter.embed_authenticity_token && head = state.view.object.find_first_significant_node(:head)
+        if state.app.config.presenter.embed_authenticity_token && head = state.view.delegate.find_first_significant_node(:head, state.view.object)
           # embed the authenticity token
           head.append("<meta name=\"pw-authenticity-token\">")
 
@@ -44,11 +44,11 @@ module Pakyow
       action :create_template_nodes do |state|
         unless Pakyow.env?(:prototype)
           state.view.each_binding_scope do |node_with_binding|
-            attributes = node_with_binding.attributes.attributes_hash.each_with_object({}) do |(attribute, value), acc|
+            attributes = node_with_binding.attributes.hash.each_with_object({}) do |(attribute, value), acc|
               acc[attribute] = value if attribute.to_s.start_with?("data")
             end
 
-            node_with_binding.after("<script type=\"text/template\"#{StringDoc::Attributes.new(attributes)}>#{node_with_binding}</script>")
+            state.view.delegate.insert_after_node(node_with_binding, "<script type=\"text/template\"#{StringDoc::Attributes.new(attributes)}>#{state.view.delegate.render(node: node_with_binding)}</script>")
           end
         end
       end
@@ -59,27 +59,9 @@ module Pakyow
         end
 
         state.view.forms.each do |form|
-          form.object.set_label(:metadata, {})
+          form.object = form.delegate.set_node_label(form.object, :metadata, {})
         end
       end
-
-      # def forms(renderer)
-      #     [].tap do |forms|
-      #       if renderer.presenter.view.object.is_a?(StringDoc::Node) && renderer.presenter.view.form?
-      #         forms << renderer.presenter.presenter_for(
-      #           renderer.presenter.view, type: FormPresenter
-      #         )
-      #       end
-
-      #       forms.concat(renderer.presenter.forms)
-      #     end
-      #   end
-
-      #   def init_form_metadata(form)
-      #     unless form.view.labeled?(:metadata)
-      #       form.view.object.set_label(:metadata, {})
-      #     end
-      #   end
     end
   end
 end

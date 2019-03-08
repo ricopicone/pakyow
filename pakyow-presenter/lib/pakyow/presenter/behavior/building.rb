@@ -79,18 +79,10 @@ module Pakyow
             }
           )
 
-          state.view.object.remove_empty_nodes
-          @view_builder.call(state)
-          state.view
+          @view_builder.call(state); state.view
         end
 
-        UNRETAINED_SIGNIFICANCE = %i(container partial template).freeze
-
         def cache_view(view, templates_path)
-          view.object.collapse(
-            *(StringDoc.significant_types.keys - UNRETAINED_SIGNIFICANCE)
-          )
-
           @built_views[templates_path] = view.deep_freeze
         end
       end

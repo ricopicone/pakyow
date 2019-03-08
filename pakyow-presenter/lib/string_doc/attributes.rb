@@ -50,6 +50,18 @@ class StringDoc
       end
     end
 
+    def to_s
+      string = @hash.compact.map { |name, value|
+        name + OPENING + value.to_s + CLOSING
+      }.join(SPACING)
+
+      if string.empty?
+        string
+      else
+        SPACING + string
+      end
+    end
+
     def ==(other)
       other.is_a?(Attributes) && @hash == other.hash
     end

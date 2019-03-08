@@ -88,6 +88,16 @@ class StringDoc
         StringDoc.new(doc_node_or_string.to_s).nodes
       end
     end
+
+    # @api private
+    def ensure_string_doc_object(object)
+      case object
+      when StringDoc, Node
+        object
+      else
+        StringDoc.new(object.to_s)
+      end
+    end
   end
 
   module Traversal
@@ -98,7 +108,7 @@ class StringDoc
         yield each_node
 
         if children = @node_children[each_node]
-          each(node, children, &block)
+          each(nil, children, &block)
         end
       end
     end
@@ -115,14 +125,14 @@ class StringDoc
 
     # Yields each node matching the significant type, without descending into nodes that are of that type.
     #
-    def each_significant_node_without_descending(type, nodes = @nodes, &block)
-      return enum_for(:each_significant_node_without_descending, type) unless block_given?
+    def each_significant_node_without_descending(type, node = nil, nodes = @nodes, &block)
+      return enum_for(:each_significant_node_without_descending, type, node) unless block_given?
 
-      nodes.each do |node|
-        if node.significant?(type)
-          yield node
-        elsif children = @node_children[node]
-          each_significant_node_without_descending(type, children, &block)
+      (node ? (@node_children[node] || []) : nodes).each do |each_node|
+        if each_node.significant?(type)
+          yield each_node
+        elsif children = @node_children[each_node]
+          each_significant_node_without_descending(type, nil, children, &block)
         end
       end
     end
@@ -153,17 +163,17 @@ class StringDoc
 
     # Returns the first node matching the significant type.
     #
-    def find_first_significant_node(type)
-      find { |node|
-        node.significant?(type)
+    def find_first_significant_node(type, node = nil)
+      each(node).find { |found_node|
+        found_node.significant?(type)
       }
     end
 
     # Returns the first node matching the significant type, without descending into nodes that are of that type.
     #
-    def find_first_significant_node_without_descending(type)
-      each_significant_node_without_descending(type) do |node|
-        return node if node.significant?(type)
+    def find_first_significant_node_without_descending(type, node = nil)
+      each_significant_node_without_descending(type, node) do |each_node|
+        return each_node if each_node.significant?(type)
       end
 
       nil
@@ -171,10 +181,10 @@ class StringDoc
 
     # Returns nodes matching the significant type.
     #
-    def find_significant_nodes(type)
+    def find_significant_nodes(type, node = nil)
       [].tap do |nodes|
-        each_significant_node(type) do |node|
-          nodes << node
+        each_significant_node(type, node) do |each_node|
+          nodes << each_node
         end
       end
     end
@@ -217,12 +227,13 @@ class StringDoc
   module Mutation
     def replace_node(node_to_replace, replacement, children = [], transformations = {})
       tap do
-        nodes = self.class.nodes_from_doc_or_string(replacement)
+        replacement = self.class.ensure_string_doc_object(replacement)
+        replacement_nodes = self.class.nodes_from_doc_or_string(replacement)
 
         # Replace current node at the top level.
         #
         if index = @nodes.index(node_to_replace)
-          @nodes.insert(index + 1, *nodes)
+          @nodes.insert(index + 1, *replacement_nodes)
           @nodes.delete_at(index)
         end
 
@@ -230,33 +241,31 @@ class StringDoc
         #
         @node_children.each_value do |node_children|
           if index = node_children.index(node_to_replace)
-            node_children.insert(index + 1, *nodes)
+            node_children.insert(index + 1, *replacement_nodes)
             node_children.delete_at(index)
           end
         end
 
-        # Remove children for the current node.
-        #
-        remove_node_children(node_to_replace)
+        if replacement.is_a?(StringDoc)
+          replacement_nodes.each do |each_node|
+            # Set node children.
+            #
+            set_node_children(each_node, replacement.children_for_node(each_node))
 
-        # Remove transformations from the current node.
-        #
-        current_transformations = @node_transformations.delete(node_to_replace)
-
-        nodes.each do |each_node|
-          # Set node children.
-          #
-          set_node_children(each_node, children)
-
-          # Reassign transformations for the node.
-          #
-          if current_transformations
-            @node_transformations[each_node] = current_transformations
+            # Insert transformations for the replacement node.
+            #
+            set_node_transformations(each_node, replacement.transformations_for_node(each_node))
           end
+        else
+          replacement_nodes.each do |each_node|
+            # Set node children.
+            #
+            set_node_children(each_node, children)
 
-          # Insert transformations for the replacement node.
-          #
-          set_node_transformations(each_node, transformations)
+            # Insert transformations for the replacement node.
+            #
+            set_node_transformations(each_node, transformations)
+          end
         end
       end
     end
@@ -264,17 +273,33 @@ class StringDoc
     def replace_node_children(node, replacement, children = [], transformations = {})
       tap do
         remove_node_children(node)
+        replacement = self.class.ensure_string_doc_object(replacement)
         replacement_nodes = self.class.nodes_from_doc_or_string(replacement)
         @node_children[node] = replacement_nodes
-        replacement_nodes.each do |replacement_node|
-          set_node_children(replacement_node, children)
-          set_node_transformations(replacement_node, transformations)
+
+        if replacement.is_a?(StringDoc)
+          replacement_nodes.each do |each_node|
+            # Set node children.
+            #
+            set_node_children(each_node, replacement.children_for_node(each_node))
+
+            # Insert transformations for the replacement node.
+            #
+            set_node_transformations(each_node, replacement.transformations_for_node(each_node))
+          end
+        else
+          replacement_nodes.each do |replacement_node|
+            set_node_children(replacement_node, children)
+            set_node_transformations(replacement_node, transformations)
+          end
         end
       end
     end
 
     def set_node_html(node, html)
-      replace_node_children(node, Node.new(html.to_s))
+      node_for_html = Node.new(html.to_s)
+      replace_node_children(node, node_for_html)
+      node_for_html
     end
 
     def remove_node(node_to_remove)
@@ -292,18 +317,6 @@ class StringDoc
             node_children.delete_at(index)
           end
         end
-
-        # Remove children for the node.
-        #
-        if children = @node_children.delete(node_to_remove)
-          children.each do |child|
-            remove_node(child)
-          end
-        end
-
-        # Remove transformations for the node.
-        #
-        @node_transformations.delete(node_to_remove)
       end
     end
 
@@ -319,6 +332,7 @@ class StringDoc
 
     def insert_after_node(node, insertable, children = [], transformations = {})
       tap do
+        insertable = self.class.ensure_string_doc_object(insertable)
         insertable_nodes = self.class.nodes_from_doc_or_string(insertable)
 
         if index = @nodes.index(node)
@@ -331,31 +345,56 @@ class StringDoc
           end
         end
 
-        insertable_nodes.each do |insertable_node|
-          set_node_children(insertable_node, children)
-          set_node_transformations(insertable_node, transformations)
+        if insertable.is_a?(StringDoc)
+          insertable_nodes.each do |insertable_node|
+            set_node_children(insertable_node, insertable.children_for_node(insertable_node))
+            set_node_transformations(insertable_node, insertable.transformations_for_node(insertable_node))
+          end
+        else
+          insertable_nodes.each do |insertable_node|
+            set_node_children(insertable_node, children)
+            set_node_transformations(insertable_node, transformations)
+          end
         end
       end
     end
 
     def append_to_node(node, appendable, children = [], transformations = {})
       tap do
+        appendable = self.class.ensure_string_doc_object(appendable)
         appendable_nodes = self.class.nodes_from_doc_or_string(appendable)
         (@node_children[node] ||= []).concat(appendable_nodes)
-        appendable_nodes.each do |appendable_node|
-          set_node_children(appendable_node, children)
-          set_node_transformations(appendable_node, transformations)
+
+        if appendable.is_a?(StringDoc)
+          appendable_nodes.each do |appendable_node|
+            set_node_children(appendable_node, appendable.children_for_node(appendable_node))
+            set_node_transformations(appendable_node, appendable.transformations_for_node(appendable_node))
+          end
+        else
+          appendable_nodes.each do |appendable_node|
+            set_node_children(appendable_node, children)
+            set_node_transformations(appendable_node, transformations)
+          end
         end
       end
     end
 
     def prepend_to_node(node, prependable, children = [], transformations = {})
       tap do
+        prependable = self.class.ensure_string_doc_object(prependable)
         prependable_nodes = self.class.nodes_from_doc_or_string(prependable)
         (@node_children[node] ||= []).unshift(*prependable_nodes)
-        prependable_nodes.each do |prependable_node|
-          set_node_children(prependable_node, children)
-          set_node_transformations(prependable_node, transformations)
+
+        if prependable.is_a?(StringDoc)
+          prependable_nodes.each do |prependable_node|
+            set_node_children(prependable_node, prependable.children_for_node(prependable_node))
+            set_node_transformations(prependable_node, prependable.transformations_for_node(prependable_node))
+          end
+        else
+          prependable_nodes.each do |prependable_node|
+            set_node_children(prependable_node, children)
+            set_node_transformations(prependable_node, transformations)
+          end
         end
       end
     end
@@ -387,8 +426,6 @@ class StringDoc
     def replace_node_attributes(node, hash)
       node_did_mutate(node, node.copy(attributes: Attributes.new(hash)))
     end
-
-    private
 
     def node_did_mutate(node, mutated_node)
       # Replace the current node with the mutated node.
@@ -499,11 +536,24 @@ class StringDoc
     alias to_html render
   end
 
+  module Introspection
+    def node_html(node)
+      render(nodes: @node_children[node].to_a)
+    end
+
+    REGEX_TAGS = /<[^>]*>/
+
+    def node_text(node)
+      node_html(node).gsub(REGEX_TAGS, "")
+    end
+  end
+
   include Enumerable
 
   include Mutation
   include Traversal
   include Rendering
+  include Introspection
 
   # @api private
   attr_reader :nodes, :node_children, :node_transformations
@@ -556,11 +606,11 @@ class StringDoc
       significance = self.class.find_significance(element)
 
       unless significance.any? || self.class.contains_significant_child?(element)
-        element_xml = element.to_xml.strip
+        element_xml = safe_strip(element.to_xml)
 
         unless element_xml.empty?
           # Nothing inside of the node is significant, so collapse it to a single node.
-          nodes << add_node(Node.new(element_xml), top_level)
+          nodes << add_node(Node.new(strip_whitespace_between_nodes(element_xml)), top_level)
         end
 
         next
@@ -569,7 +619,8 @@ class StringDoc
       node = if significance.any?
         build_significant_node(element, significance)
       elsif element.is_a?(Oga::XML::Text) || element.is_a?(Oga::XML::Comment)
-        element_xml = element.to_xml.strip
+        element_xml = safe_strip(element.to_xml)
+
         if element_xml.empty?
           nil
         else
@@ -598,6 +649,32 @@ class StringDoc
     end
 
     node
+  end
+
+  # Removes whitespace around tags and otherwise empty strings, but leaves spaces around text.
+  #
+  def safe_strip(xml)
+    if (stripped = xml.strip).empty?
+      xml = stripped
+    else
+      if xml[0] == "<"
+        xml = xml.lstrip
+      end
+
+      if xml[-1] == ">"
+        xml = xml.rstrip
+      end
+
+      xml = xml.gsub(/\n/, "")
+    end
+
+    xml
+  end
+
+  # Removes whitespace between nodes.
+  #
+  def strip_whitespace_between_nodes(xml)
+    xml.gsub(/>\s+</, "><")
   end
 
   # Attributes that should be prefixed with +data-+

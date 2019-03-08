@@ -119,26 +119,6 @@ RSpec.describe "sanitization during presentation" do
     end
   end
 
-  context "inserting an html string before" do
-    let :view do
-      Pakyow::Presenter::View.new("<div binding=\"post\"></div>")
-    end
-
-    it "escapes the value" do
-      post_view = presenter.find(:post)
-      post_view.before("<span></span>")
-      expect(presenter.to_s).to include("&lt;span&gt;&lt;/span&gt;<div data-b=\"post\"></div>")
-    end
-
-    context "value is marked as safe" do
-      it "does not escape the value" do
-        post_view = presenter.find(:post)
-        post_view.before(safe("<span></span>"))
-        expect(presenter.to_s).to include("<span></span><div data-b=\"post\"></div>")
-      end
-    end
-  end
-
   context "replacing a node with an html string" do
     let :view do
       Pakyow::Presenter::View.new("<div binding=\"post\"></div>")

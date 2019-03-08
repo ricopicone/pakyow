@@ -33,11 +33,10 @@ module Pakyow
 
       def content(container)
         container = container.to_sym
-
         if container == DEFAULT_CONTAINER
-          @object
+          @delegate
         elsif @containers.key?(container)
-          @containers[container].object
+          @containers[container].delegate
         else
           nil
         end
@@ -52,7 +51,7 @@ module Pakyow
       end
 
       def container_views
-        [View.from_object(@object)].concat(@containers.values)
+        [View.from_object(@delegate, nil)].concat(@containers.values)
       end
 
       private

@@ -276,7 +276,9 @@ module Pakyow
               end
             end
 
+            puts presenter.view#.delegate
             presenter.bind(binder)
+            puts presenter.view#.delegate
 
             presenter.view.binding_scopes(descend: false).uniq { |binding_scope|
               binding_scope.label(:binding)
@@ -439,7 +441,9 @@ module Pakyow
               binding_view.attrs[key] = value_part
             end
 
-            binding_view.object.set_label(:used, true)
+            binding_view.object = binding_view.delegate.set_node_label(
+              binding_view.object, :used, true
+            )
           end
         end
 

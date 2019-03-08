@@ -97,6 +97,8 @@ module Pakyow
     # @param error [Object] the error object
     #
     def houston(error)
+      pp error
+      puts error.backtrace[0..20]
       error(
         @logger.formatter.format_error(
           error

@@ -67,11 +67,11 @@ module Pakyow
 
       # Returns only the content value for a key.
       #
-      def __content(key, view)
+      def __content(key, delegate, node)
         return_value = __value(key)
         if return_value.is_a?(BindingParts)
           if return_value.content?
-            return_value.content(view)
+            return_value.content(delegate, node)
           else
             @object[key]
           end

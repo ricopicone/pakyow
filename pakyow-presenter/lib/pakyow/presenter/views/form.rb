@@ -27,7 +27,7 @@ module Pakyow
       private
 
       def bind_value_to_node(value, node)
-        super
+        node = super
 
         if node.tagname == SELECT_TAG
           select_option_with_value(value, View.from_object(node))
@@ -36,6 +36,8 @@ module Pakyow
         if CHECKED_TYPES.include?(node.attributes[:type])
           check_or_uncheck_value(value, View.from_object(node))
         end
+
+        node
       end
 
       def check_or_uncheck_value(value, view)

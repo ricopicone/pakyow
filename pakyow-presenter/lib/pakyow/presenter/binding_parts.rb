@@ -15,8 +15,8 @@ module Pakyow
         @parts.include?(:content)
       end
 
-      def content(view)
-        @parts[:content].call(view.text)
+      def content(delegate, node)
+        @parts[:content].call(delegate.node_text(node))
       end
 
       def values(view)

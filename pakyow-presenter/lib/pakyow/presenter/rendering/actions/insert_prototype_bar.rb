@@ -7,7 +7,7 @@ module Pakyow
       class InsertPrototypeBar
         def call(renderer)
           if renderer.rendering_prototype?
-            if body_node = renderer.presenter.view.object.find_first_significant_node(:body)
+            if body_node = renderer.presenter.view.delegate.find_first_significant_node(:body, renderer.presenter.view.object)
               body_node.append <<~HTML
                 <style>
                   .pw-prototype {

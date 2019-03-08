@@ -41,7 +41,7 @@ RSpec.describe "populating options for a select field" do
   end
 
   it "sets the presentation value for each option" do
-    options = tag_view.object.find_significant_nodes(:option)
+    options = tag_view.delegate.find_significant_nodes(:option, tag_view.object)
     expect(options[0].text).to eq("one")
     expect(options[1].text).to eq("two")
     expect(options[2].text).to eq("three")

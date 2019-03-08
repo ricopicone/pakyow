@@ -16,16 +16,17 @@ module Pakyow
         super(html, **args)
       end
 
+      # TODO: is this used?
       def container(name = Page::DEFAULT_CONTAINER)
         @object.container(name.to_sym)
       end
 
       def build(page)
-        @object.each_significant_node(:container) do |container_node|
-          container_node.replace(page.content(container_node.label(:container)))
+        @delegate.each_significant_node(:container, @object) do |container_node|
+          @delegate.replace_node(container_node, page.content(container_node.label(:container)))
         end
 
-        View.from_object(@object).add_info(info, page.info)
+        View.from_object(@delegate, nil).add_info(info, page.info)
       end
     end
   end
