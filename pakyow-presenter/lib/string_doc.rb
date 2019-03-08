@@ -6,57 +6,15 @@ require "oga"
 
 require "pakyow/support/silenceable"
 
-# String-based XML document optimized for fast manipulation and rendering.
-#
-# In Pakyow, we rarely care about every node in a document. Instead, only significant nodes and
-# immediate children are available for manipulation. StringDoc provides "just enough" for our
-# purposes. A StringDoc is represented as a multi- dimensional array of strings, making
-# rendering essentially a +flatten.join+.
-#
-# Because less work is performed during render, StringDoc is consistently faster than rendering
-# a document using Nokigiri or Oga. One obvious tradeoff is that parsing is much slower (we use
-# Oga to parse the XML, then convert it into a StringDoc). This is an acceptable tradeoff
-# because we only pay the parsing cost once (when the Pakyow application boots).
-#
-# All that to say, StringDoc is a tool that is very specialized to Pakyow's use-case. Use it
-# only when a longer parse time is acceptable and you only care about a handful of identifiable
-# nodes in a document.
-#
 class StringDoc
-  require "string_doc/attributes"
   require "string_doc/node"
+  require "string_doc/attributes"
 
   class << self
-    # Creates an empty doc.
-    #
-    def empty(delegate: nil)
-      allocate.tap do |doc|
-        doc.instance_variable_set(:@nodes, [])
-        doc.instance_variable_set(:@collapsed, nil)
-        doc.instance_variable_set(:@transformations, {})
-        doc.instance_variable_set(:@delegate, delegate)
-      end
-    end
-
     # Registers a significant node with a name and an object to handle parsing.
     #
     def significant(name, object)
       significant_types[name] = object
-    end
-
-    # Creates a +StringDoc+ from an array of +Node+ objects.
-    #
-    def from_nodes(nodes, delegate: nil)
-      allocate.tap do |instance|
-        instance.instance_variable_set(:@nodes, nodes)
-        instance.instance_variable_set(:@collapsed, nil)
-        instance.instance_variable_set(:@transformations, {})
-        instance.instance_variable_set(:@delegate, delegate)
-
-        nodes.each do |node|
-          node.parent = instance
-        end
-      end
     end
 
     # Yields nodes from an oga document, breadth-first.
@@ -127,421 +85,517 @@ class StringDoc
       when Node
         [doc_node_or_string]
       else
-        # TODO: consider what the delegate should be
         StringDoc.new(doc_node_or_string.to_s).nodes
       end
     end
   end
 
-  include Pakyow::Support::Silenceable
+  module Traversal
+    def each(nodes = @nodes, &block)
+      return enum_for(:each) unless block_given?
 
-  attr_reader :collapsed
+      nodes.each do |node|
+        yield node
 
-  # @api private
-  attr_reader :nodes, :transformations
+        if children = @node_children[node]
+          each(children, &block)
+        end
+      end
+    end
 
-  # Creates a +StringDoc+ from an html string.
-  #
-  def initialize(html, delegate: self)
-    @delegate, @transformations, @collapsed = delegate, {}, nil
-    @nodes = parse(Oga.parse_html(html))
-  end
+    # Yields each node matching the significant type.
+    #
+    def each_significant_node(type)
+      return enum_for(:each_significant_node, type) unless block_given?
 
-  def transform(priority: :default, &block)
-    @delegate.add_transformation(self, priority: priority, &block)
-  end
+      each do |node|
+        yield node if node.significant?(type)
+      end
+    end
 
-  def add_transformation(object, priority: :default, &block)
-    (@delegate.transformations[object] ||= { high: [], default: [], low: [] })[priority] << block
-  end
+    # Yields each node matching the significant type, without descending into nodes that are of that type.
+    #
+    def each_significant_node_without_descending(type, nodes = @nodes, &block)
+      return enum_for(:each_significant_node_without_descending, type) unless block_given?
 
-  def copy(nodes: @nodes, collapsed: @collapsed)
-    self.class.allocate.tap do |copy|
-      copy.instance_variable_set(:@nodes, nodes)
-      copy.instance_variable_set(:@collapsed, collapsed)
+      nodes.each do |node|
+        if node.significant?(type)
+          yield node
+        elsif children = @node_children[node]
+          each_significant_node_without_descending(type, children, &block)
+        end
+      end
+    end
+
+    # Yields each node matching the significant type and name.
+    #
+    # @see find_significant_nodes
+    #
+    def each_significant_node_with_name(type, name)
+      return enum_for(:each_significant_node_with_name, type, name) unless block_given?
+
+      each_significant_node(type) do |node|
+        yield node if node.label(type) == name
+      end
+    end
+
+    # Yields each node matching the significant type and name, without descending into nodes that are of that type.
+    #
+    # @see find_significant_nodes
+    #
+    def each_significant_node_with_name_without_descending(type, name)
+      return enum_for(:each_significant_node_with_name_without_descending, type, name) unless block_given?
+
+      each_significant_node_without_descending(type) do |node|
+        yield node if node.label(type) == name
+      end
+    end
+
+    # Returns the first node matching the significant type.
+    #
+    def find_first_significant_node(type)
+      find { |node|
+        node.significant?(type)
+      }
+    end
+
+    # Returns the first node matching the significant type, without descending into nodes that are of that type.
+    #
+    def find_first_significant_node_without_descending(type)
+      each_significant_node_without_descending(type) do |node|
+        return node if node.significant?(type)
+      end
+
+      nil
+    end
+
+    # Returns nodes matching the significant type.
+    #
+    def find_significant_nodes(type)
+      [].tap do |nodes|
+        each_significant_node(type) do |node|
+          nodes << node
+        end
+      end
+    end
+
+    # Returns nodes matching the significant type, without descending into nodes that are of that type.
+    #
+    def find_significant_nodes_without_descending(type)
+      [].tap do |nodes|
+        each_significant_node_without_descending(type) do |node|
+          nodes << node
+        end
+      end
+    end
+
+    # Returns nodes matching the significant type and name.
+    #
+    # @see find_significant_nodes
+    #
+    def find_significant_nodes_with_name(type, name)
+      [].tap do |nodes|
+        each_significant_node_with_name(type, name) do |node|
+          nodes << node
+        end
+      end
+    end
+
+    # Returns nodes matching the significant type and name, without descending into nodes that are of that type.
+    #
+    # @see find_significant_nodes
+    #
+    def find_significant_nodes_with_name_without_descending(type, name)
+      [].tap do |nodes|
+        each_significant_node_with_name_without_descending(type, name) do |node|
+          nodes << node
+        end
+      end
     end
   end
 
-  # @api private
-  def initialize_copy(_)
-    super
+  module Mutation
+    def replace_node(node_to_replace, replacement, children = [], transformations = {})
+      tap do
+        nodes = self.class.nodes_from_doc_or_string(replacement)
 
-    @nodes = @nodes.map { |node|
-      node.dup.tap do |duped_node|
-        duped_node.parent = self
+        # Replace current node at the top level.
+        #
+        if index = @nodes.index(node_to_replace)
+          @nodes.insert(index + 1, *nodes)
+          @nodes.delete_at(index)
+        end
+
+        # Replace current node if it is a child of another node.
+        #
+        @node_children.each_value do |node_children|
+          if index = node_children.index(node_to_replace)
+            node_children.insert(index + 1, *nodes)
+            node_children.delete_at(index)
+          end
+        end
+
+        # Remove children for the current node.
+        #
+        remove_node_children(node_to_replace)
+
+        # Remove transformations from the current node.
+        #
+        current_transformations = @node_transformations.delete(node_to_replace)
+
+        nodes.each do |each_node|
+          # Set node children.
+          #
+          set_node_children(each_node, children)
+
+          # Reassign transformations for the node.
+          #
+          if current_transformations
+            @node_transformations[each_node] = current_transformations
+          end
+
+          # Insert transformations for the replacement node.
+          #
+          set_node_transformations(each_node, transformations)
+        end
       end
-    }
+    end
 
-    @transformations = Hash[@transformations.map { |object, priorities|
-      [object, Hash[priorities.map { |priority, array| [priority, array.dup] }]]
-    }]
+    def replace_node_children(node, replacement, children = [], transformations = {})
+      tap do
+        remove_node_children(node)
+        replacement_nodes = self.class.nodes_from_doc_or_string(replacement)
+        @node_children[node] = replacement_nodes
+        replacement_nodes.each do |replacement_node|
+          set_node_children(replacement_node, children)
+          set_node_transformations(replacement_node, transformations)
+        end
+      end
+    end
+
+    def set_node_html(node, html)
+      replace_node_children(node, Node.new(html.to_s))
+    end
+
+    def remove_node(node_to_remove)
+      tap do
+        # Remove node at the top level.
+        #
+        if index = @nodes.index(node_to_remove)
+          @nodes.delete_at(index)
+        end
+
+        # Remove node if it is a child of another node.
+        #
+        @node_children.each_value do |node_children|
+          if index = node_children.index(node_to_remove)
+            node_children.delete_at(index)
+          end
+        end
+
+        # Remove children for the node.
+        #
+        if children = @node_children.delete(node_to_remove)
+          children.each do |child|
+            remove_node(child)
+          end
+        end
+
+        # Remove transformations for the node.
+        #
+        @node_transformations.delete(node_to_remove)
+      end
+    end
+
+    def remove_node_children(node)
+      tap do
+        if children = @node_children.delete(node)
+          children.each do |child|
+            remove_node(child)
+          end
+        end
+      end
+    end
+
+    def insert_after_node(node, insertable, children = [], transformations = {})
+      tap do
+        insertable_nodes = self.class.nodes_from_doc_or_string(insertable)
+
+        if index = @nodes.index(node)
+          @nodes.insert(index + 1, *insertable_nodes)
+        else
+          @node_children.values.each do |children_for_node|
+            if index = children_for_node.index(node)
+              children_for_node.insert(index + 1, *insertable_nodes)
+            end
+          end
+        end
+
+        insertable_nodes.each do |insertable_node|
+          set_node_children(insertable_node, children)
+          set_node_transformations(insertable_node, transformations)
+        end
+      end
+    end
+
+    def append_to_node(node, appendable, children = [], transformations = {})
+      tap do
+        appendable_nodes = self.class.nodes_from_doc_or_string(appendable)
+        (@node_children[node] ||= []).concat(appendable_nodes)
+        appendable_nodes.each do |appendable_node|
+          set_node_children(appendable_node, children)
+          set_node_transformations(appendable_node, transformations)
+        end
+      end
+    end
+
+    def prepend_to_node(node, prependable, children = [], transformations = {})
+      tap do
+        prependable_nodes = self.class.nodes_from_doc_or_string(prependable)
+        (@node_children[node] ||= []).unshift(*prependable_nodes)
+        prependable_nodes.each do |prependable_node|
+          set_node_children(prependable_node, children)
+          set_node_transformations(prependable_node, transformations)
+        end
+      end
+    end
+
+    def set_node_label(node, key, value)
+      tap do
+        labels = node.labels.dup
+        labels[key.to_sym] = value
+        node_did_mutate(node, node.copy(labels: labels))
+      end
+    end
+
+    def delete_node_label(node, key)
+      tap do
+        labels = node.labels.dup
+        labels.delete(key.to_sym)
+        node_did_mutate(node, node.copy(labels: labels))
+      end
+    end
+
+    def set_node_attribute(node, key, value)
+      tap do
+        attributes = node.attributes.hash.dup
+        attributes[key.to_s] = value
+        node_did_mutate(node, node.copy(attributes: Attributes.new(attributes)))
+      end
+    end
+
+    def delete_node_attribute(node, key)
+      tap do
+        attributes = node.attributes.hash.dup
+        attributes.delete(key.to_s)
+        node_did_mutate(node, node.copy(attributes: Attributes.new(attributes)))
+      end
+    end
+
+    def replace_node_attributes(node, hash)
+      tap do
+        node_did_mutate(node, node.copy(attributes: Attributes.new(hash)))
+      end
+    end
+
+    private
+
+    def node_did_mutate(node, mutated_node)
+      # Replace the current node with the mutated node.
+      #
+      if index = @nodes.index(node)
+        @nodes.insert(index + 1, mutated_node)
+        @nodes.delete_at(index)
+      end
+
+      # Replace current node if it is a child of another node.
+      #
+      @node_children.each_value do |node_children|
+        if index = node_children.index(node)
+          node_children.insert(index + 1, mutated_node)
+          node_children.delete_at(index)
+        end
+      end
+
+      # Reassign the current node's children.
+      #
+      @node_children[mutated_node] = @node_children.delete(node)
+
+      # Reassign the current node's transformations.
+      #
+      @node_transformations[mutated_node] = @node_transformations.delete(node)
+    end
+
+    def set_node_children(node, children)
+      @node_children[node] = []
+      children.each do |child, nested_children|
+        @node_children[node] << child
+        set_node_children(child, nested_children)
+      end
+    end
+
+    def set_node_transformations(node, tuple)
+      @node_transformations[node] = tuple[0]
+
+      if nested = tuple[1]
+        nested.each do |nested_node, nested_transformations|
+          set_node_transformations(nested_node, nested_transformations)
+        end
+      end
+    end
+  end
+
+  module Rendering
+    def transform(node, priority: :default, &block)
+      (@node_transformations[node] ||= { high: [], default: [], low: [] })[priority] << block
+    end
+
+    def render(output = String.new, nodes: @nodes, context: self, on_error: nil)
+      nodes.each do |node|
+        catch :rendered_node do
+          if prioritized_transformations = @node_transformations.delete(node)
+            prioritized_transformations.each_value do |transformations|
+              transformations.each do |transformation|
+                node = context.instance_exec(node, &transformation)
+              rescue => error
+                node = if on_error
+                  on_error.call(error, node)
+                else
+                  nil
+                end
+              ensure
+                if node.nil?
+                  throw :rendered_node
+                elsif node.is_a?(String)
+                  output << node
+                  throw :rendered_node
+                end
+              end
+            end
+          end
+
+          output << node.tag_open_start
+
+          node.attributes.each_string do |attribute_string|
+            output << attribute_string
+          end
+
+          output << node.tag_open_end
+
+          if children = @node_children[node]
+            render(output, nodes: children, context: context, on_error: on_error)
+          end
+
+          output << node.tag_close
+        end
+      end
+
+      output
+    end
+    alias to_s render
+    alias to_xml render
+    alias to_html render
   end
 
   include Enumerable
 
-  def each(&block)
-    return enum_for(:each) unless block_given?
+  include Mutation
+  include Traversal
+  include Rendering
 
-    @nodes.each do |node|
-      yield node
+  # @api private
+  attr_reader :nodes, :node_children, :node_transformations
 
-      if node.children.is_a?(StringDoc)
-        node.children.each(&block)
-      else
-        yield node.children
-      end
-    end
+  def initialize(html)
+    @nodes, @node_children, @node_transformations = [], {}, {}
+    build(Oga.parse_html(html), true)
   end
 
-  # Yields each node matching the significant type.
-  #
-  def each_significant_node(type)
-    return enum_for(:each_significant_node, type) unless block_given?
+  def initialize_copy(_)
+    super
 
-    each do |node|
-      yield node if node.is_a?(Node) && node.significant?(type)
-    end
+    @nodes = @nodes.dup
+    @node_children = Hash[@node_children.map { |key, value| [key, value.dup] }]
+    @node_transformations = @node_transformations.dup
   end
-
-  # Yields each node matching the significant type, without descending into nodes that are of that type.
-  #
-  def each_significant_node_without_descending(type, &block)
-    return enum_for(:each_significant_node_without_descending, type) unless block_given?
-
-    @nodes.each do |node|
-      if node.is_a?(Node)
-        if node.significant?(type)
-          yield node
-        elsif node.children.is_a?(StringDoc)
-          node.children.each_significant_node_without_descending(type, &block)
-        end
-      end
-    end
-  end
-
-  # Yields each node matching the significant type and name.
-  #
-  # @see find_significant_nodes
-  #
-  def each_significant_node_with_name(type, name)
-    return enum_for(:each_significant_node_with_name, type, name) unless block_given?
-
-    each_significant_node(type) do |node|
-      yield node if node.label(type) == name
-    end
-  end
-
-  # Yields each node matching the significant type and name, without descending into nodes that are of that type.
-  #
-  # @see find_significant_nodes
-  #
-  def each_significant_node_with_name_without_descending(type, name)
-    return enum_for(:each_significant_node_with_name_without_descending, type, name) unless block_given?
-
-    each_significant_node_without_descending(type) do |node|
-      yield node if node.label(type) == name
-    end
-  end
-
-  # Returns the first node matching the significant type.
-  #
-  def find_first_significant_node(type)
-    find { |node|
-      node.significant?(type)
-    }
-  end
-
-  # Returns the first node matching the significant type, without descending into nodes that are of that type.
-  #
-  def find_first_significant_node_without_descending(type)
-    each_significant_node_without_descending(type) do |node|
-      return node if node.significant?(type)
-    end
-
-    nil
-  end
-
-  # Returns nodes matching the significant type.
-  #
-  def find_significant_nodes(type)
-    [].tap do |nodes|
-      each_significant_node(type) do |node|
-        nodes << node
-      end
-    end
-  end
-
-  # Returns nodes matching the significant type, without descending into nodes that are of that type.
-  #
-  def find_significant_nodes_without_descending(type)
-    [].tap do |nodes|
-      each_significant_node_without_descending(type) do |node|
-        nodes << node
-      end
-    end
-  end
-
-  # Returns nodes matching the significant type and name.
-  #
-  # @see find_significant_nodes
-  #
-  def find_significant_nodes_with_name(type, name)
-    [].tap do |nodes|
-      each_significant_node_with_name(type, name) do |node|
-        nodes << node
-      end
-    end
-  end
-
-  # Returns nodes matching the significant type and name, without descending into nodes that are of that type.
-  #
-  # @see find_significant_nodes
-  #
-  def find_significant_nodes_with_name_without_descending(type, name)
-    [].tap do |nodes|
-      each_significant_node_with_name_without_descending(type, name) do |node|
-        nodes << node
-      end
-    end
-  end
-
-  # Clears all nodes.
-  #
-  def clear
-    tap do
-      @nodes.clear
-    end
-  end
-  alias remove clear
-
-  # Replaces the current document.
-  #
-  # Accepts a +StringDoc+ or XML +String+.
-  #
-  def replace(doc_or_string)
-    tap do
-      @nodes = self.class.nodes_from_doc_or_string(doc_or_string)
-    end
-  end
-
-  # Appends to this document.
-  #
-  # Accepts a +StringDoc+ or XML +String+.
-  #
-  def append(doc_or_string)
-    tap do
-      @nodes.concat(self.class.nodes_from_doc_or_string(doc_or_string))
-    end
-  end
-
-  # Prepends to this document.
-  #
-  # Accepts a +StringDoc+ or XML +String+.
-  #
-  def prepend(doc_or_string)
-    tap do
-      @nodes.unshift(*self.class.nodes_from_doc_or_string(doc_or_string))
-    end
-  end
-
-  # Inserts a node after another node contained in this document.
-  #
-  def insert_after(node_to_insert, after_node)
-    tap do
-      if after_node_index = @nodes.index(after_node)
-        @nodes.insert(after_node_index + 1, *self.class.nodes_from_doc_or_string(node_to_insert))
-      end
-    end
-  end
-
-  # Inserts a node before another node contained in this document.
-  #
-  def insert_before(node_to_insert, before_node)
-    tap do
-      if before_node_index = @nodes.index(before_node)
-        @nodes.insert(before_node_index, *self.class.nodes_from_doc_or_string(node_to_insert))
-      end
-    end
-  end
-
-  # Removes a node from the document.
-  #
-  def remove_node(node_to_delete)
-    tap do
-      @nodes.delete_if { |node|
-        node.object_id == node_to_delete.object_id
-      }
-    end
-  end
-
-  # Replaces a node from the document.
-  #
-  def replace_node(node_to_replace, replacement_node)
-    tap do
-      if replace_node_index = @nodes.index(node_to_replace)
-        nodes_to_insert = self.class.nodes_from_doc_or_string(replacement_node).map { |node|
-          node.instance_variable_set(:@parent, self); node
-        }
-        @nodes.insert(replace_node_index + 1, *nodes_to_insert)
-        @nodes.delete_at(replace_node_index)
-      end
-    end
-  end
-
-  # Converts the document to an xml string.
-  #
-  def to_xml(context: self)
-    render(context: context)
-  end
-  alias :to_html :to_xml
-  alias :to_s :to_xml
 
   def ==(other)
-    other.is_a?(StringDoc) && @nodes == other.nodes
+    other.is_a?(StringDoc) && @nodes == other.nodes && @node_children == other.node_children
   end
 
-  def collapse(*significance)
-    if significance?(*significance)
-      @nodes.each do |node|
-        node.children.collapse(*significance)
-      end
-    else
-      @collapsed = to_xml
-      @nodes = []
-    end
-  end
-
-  def significance?(*significance)
-    @nodes.any? { |node|
-      node.significance?(*significance) || node.children.significance?(*significance)
+  # Returns an array of tuples representing child nodes and their children:
+  #
+  #   [[child, ...], ...]
+  #
+  def children_for_node(node)
+    (@node_children[node] || []).map { |child|
+      [child, children_for_node(child)]
     }
   end
 
-  def remove_empty_nodes
-    @nodes.each do |node|
-      node.children.remove_empty_nodes
-    end
-
-    unless empty?
-      @nodes.delete_if(&:empty?)
-    end
-  end
-
-  def empty?
-    @nodes.empty?
-  end
-
-  def render(doc = self, string = String.new, context: self)
-    if doc.collapsed && doc.empty?
-      string << doc.collapsed
-    else
-      if prioritized_transformations = @transformations.delete(doc)
-        prioritized_transformations.each_value do |transformations|
-          transformations.each do |transformation|
-            doc = context.instance_exec(doc, &transformation)
-
-            if doc.nil?
-              return
-            elsif doc.is_a?(String)
-              break
-            end
-          end
-        end
-
-        return render(doc, string, context: context)
-      end
-
-      doc.nodes.each do |node|
-        render_node(node, string, context: context)
-      end
-
-      string
-    end
+  # Returns a tuple with transformations for the node and transformations for each child:
+  #
+  #   [transformations, [child, transformations, ...]]
+  #
+  def transformations_for_node(node)
+    [@node_transformations[node] || {}, (@node_children[node] || []).map { |child| [child, transformations_for_node(child)] }]
   end
 
   private
 
-  def render_node(node, string, context:)
-    if node.is_a?(Node)
-      if prioritized_transformations = @transformations.delete(node)
-        prioritized_transformations.each_value do |transformations|
-          transformations.each do |transformation|
-            node = context.instance_exec(node, &transformation)
-
-            if node.nil?
-              return
-            elsif node.is_a?(String)
-              break
-            end
-          end
-        end
-
-        return render_node(node, string, context: context)
-      end
-
-      string << node.tag_open_start
-
-      attributes = node.attributes
-      if prioritized_transformations = @transformations.delete(attributes)
-        prioritized_transformations.each_value do |transformations|
-          transformations.each do |transformation|
-            attributes = context.instance_exec(attributes, &transformation)
-          end
-        end
-      end
-
-      attributes.each_string do |attribute_string|
-        string << attribute_string
-      end
-
-      string << node.tag_open_end
-
-      case node.children
-      when StringDoc
-        render(node.children, string, context: context)
-      else
-        string << node.children
-      end
-
-      string << node.tag_close
-    else
-      string << node.to_s
-    end
-  end
-
-  # Parses an Oga document into an array of +Node+ objects.
-  #
-  def parse(doc)
+  def build(oga, top_level = false)
     nodes = []
 
-    unless doc.is_a?(Oga::XML::Element) || !doc.respond_to?(:doctype) || doc.doctype.nil?
-      nodes << Node.new("<!DOCTYPE html>", delegate: @delegate)
+    unless oga.is_a?(Oga::XML::Element) || !oga.respond_to?(:doctype) || oga.doctype.nil?
+      nodes << add_node(Node.new("<!DOCTYPE html>"), top_level)
     end
 
-    self.class.breadth_first(doc) do |element|
+    self.class.breadth_first(oga) do |element|
       significance = self.class.find_significance(element)
 
       unless significance.any? || self.class.contains_significant_child?(element)
-        # Nothing inside of the node is significant, so collapse it to a single node.
-        nodes << Node.new(element.to_xml, delegate: @delegate); next
+        element_xml = element.to_xml.strip
+
+        unless element_xml.empty?
+          # Nothing inside of the node is significant, so collapse it to a single node.
+          nodes << add_node(Node.new(element_xml), top_level)
+        end
+
+        next
       end
 
       node = if significance.any?
         build_significant_node(element, significance)
       elsif element.is_a?(Oga::XML::Text) || element.is_a?(Oga::XML::Comment)
-        Node.new(element.to_xml, delegate: @delegate)
+        element_xml = element.to_xml.strip
+        if element_xml.empty?
+          nil
+        else
+          Node.new(element_xml)
+        end
       else
-        Node.new("<#{element.name}#{self.class.attributes_string(element)}", delegate: @delegate)
+        Node.new("<#{element.name}#{self.class.attributes_string(element)}")
       end
 
-      if element.is_a?(Oga::XML::Element)
-        node.close(element.name, parse(element))
-      end
+      if node
+        if element.is_a?(Oga::XML::Element)
+          node.close(element.name)
+          @node_children[node] = build(element)
+        end
 
-      nodes << node
+        nodes << add_node(node, top_level)
+      end
     end
 
     nodes
+  end
+
+  def add_node(node, top_level = false)
+    if top_level
+      @nodes << node
+    end
+
+    node
   end
 
   # Attributes that should be prefixed with +data-+
@@ -603,7 +657,7 @@ class StringDoc
         find_channel_for_binding!(element, attributes, labels)
       end
 
-      Node.new("<#{element.name}", Attributes.new(attributes, @delegate), significance: significance, labels: labels, parent: self, delegate: @delegate)
+      Node.new("<#{element.name}", Attributes.new(attributes), significance: significance, labels: labels)
     else
       name = element.text.strip.match(/@[^\s]*\s*([a-zA-Z0-9\-_]*)/)[1]
       labels = significance.each_with_object({}) { |significant_type, labels_hash|
@@ -615,7 +669,7 @@ class StringDoc
         end
       }
 
-      Node.new(element.to_xml, significance: significance, parent: self, labels: labels, delegate: @delegate)
+      Node.new(element.to_xml, significance: significance, labels: labels)
     end
   end
 

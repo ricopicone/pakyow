@@ -3,85 +3,36 @@
 require "forwardable"
 
 class StringDoc
-  # String-based XML attributes.
-  #
   class Attributes
     OPENING = '="'
     CLOSING = '"'
     SPACING = " "
 
-    include Pakyow::Support::SafeStringHelpers
+    # @api private
+    attr_reader :hash
 
     extend Forwardable
+    def_delegators :@hash, :keys, :each
 
-    # @!method keys
-    #   Returns the attribute keys.
-    #
-    # @!method key?
-    #   Returns true if value is a key.
-    #
-    # @!method []
-    #   Looks up a value for an attribute.
-    #
-    # @!method []=
-    #   Sets a value for an attribute.
-    #
-    # @!method delete
-    #   Removes an attribute by name.
-    #
-    # @!method each
-    #   Yields each attribute.
-    #
-    def_delegators :@attributes_hash, :keys, :each
-
-    def initialize(attributes_hash = {}, delegate = self)
-      @delegate = delegate
-      @attributes_hash = Hash[attributes_hash.map { |key, value|
+    def initialize(hash = {})
+      @hash = Hash[hash.map { |key, value|
         [key.to_s, value]
       }]
     end
 
-    def transform(priority: :default, &block)
-      @delegate.add_transformation(self, priority: priority, &block)
-    end
-
-    def replace(attributes_hash)
-      @attributes_hash = attributes_hash
-    end
-
-    def []=(key, value)
-      @attributes_hash[key.to_s] = value
+    def key?(key)
+      @hash.key?(key.to_s)
     end
 
     def [](key)
-      @attributes_hash[key.to_s]
-    end
-
-    def delete(key)
-      @attributes_hash.delete(key.to_s)
-    end
-
-    def key?(key)
-      @attributes_hash.key?(key.to_s)
-    end
-
-    def to_s
-      string = @attributes_hash.compact.map { |name, value|
-        name + OPENING + value.to_s + CLOSING
-      }.join(SPACING)
-
-      if string.empty?
-        string
-      else
-        SPACING + string
-      end
+      @hash[key.to_s]
     end
 
     def each_string
-      if @attributes_hash.empty?
+      if @hash.empty?
         yield ""
       else
-        @attributes_hash.each do |name, value|
+        @hash.each do |name, value|
           yield SPACING
           yield name
           yield OPENING
@@ -92,23 +43,7 @@ class StringDoc
     end
 
     def ==(other)
-      other.is_a?(Attributes) && @attributes_hash == other.attributes_hash
-    end
-
-    # @api private
-    attr_reader :attributes_hash
-
-    # @api private
-    def initialize_copy(_)
-      @attributes_hash = @attributes_hash.each_with_object({}) { |(key, value), h|
-        h[key] = value.dup
-      }
-    end
-
-    def copy(attributes_hash: @attributes_hash)
-      self.class.allocate.tap do |copy|
-        copy.instance_variable_set(:@attributes_hash, attributes_hash)
-      end
+      other.is_a?(Attributes) && @hash == other.hash
     end
   end
 end

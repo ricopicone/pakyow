@@ -11,42 +11,28 @@ RSpec.describe StringDoc::Attributes do
 
   describe "#keys" do
     it "delegates to the internal hash" do
-      expect(attributes.attributes_hash).to receive(:keys)
+      expect(attributes.hash).to receive(:keys)
       attributes.keys
     end
   end
 
   describe "#key?" do
     it "delegates to the internal hash" do
-      expect(attributes.attributes_hash).to receive(:key?).with("name")
+      expect(attributes.hash).to receive(:key?).with("name")
       attributes.key?(:name)
     end
   end
 
   describe "#[]" do
     it "delegates to the internal hash" do
-      expect(attributes.attributes_hash).to receive(:[]).with("name")
+      expect(attributes.hash).to receive(:[]).with("name")
       attributes[:name]
-    end
-  end
-
-  describe "#[]=" do
-    it "delegates to the internal hash" do
-      expect(attributes.attributes_hash).to receive(:[]=).with("name", "baz")
-      attributes[:name] = "baz"
-    end
-  end
-
-  describe "#delete" do
-    it "delegates to the internal hash" do
-      expect(attributes.attributes_hash).to receive(:delete).with("name")
-      attributes.delete(:name)
     end
   end
 
   describe "#each" do
     it "delegates to the internal hash" do
-      expect(attributes.attributes_hash).to receive(:each)
+      expect(attributes.hash).to receive(:each)
       attributes.each
     end
   end
@@ -65,16 +51,6 @@ RSpec.describe StringDoc::Attributes do
     it "returns false when the other object is not of type StringDoc::Attributes" do
       other = 'name="foo" title="bar"'
       expect(attributes).not_to eq(other)
-    end
-  end
-
-  describe "#to_s" do
-    it "returns the attributes as a string" do
-      expect(attributes.to_s).to eq(' name="foo" title="bar"')
-    end
-
-    it "returns an empty string when no attributes" do
-      expect(StringDoc::Attributes.new({}).to_s).to eq("")
     end
   end
 end
