@@ -9,12 +9,12 @@ RSpec.describe Pakyow::Presenter::View do
     end
 
     let :view do
-      Pakyow::Presenter::View.from_object(doc.nodes.first)
+      Pakyow::Presenter::View.from_object(doc, doc.nodes.first)
     end
 
     context "when `object` is a StringDoc" do
       let :view do
-        Pakyow::Presenter::View.from_object(doc)
+        Pakyow::Presenter::View.from_object(doc, nil)
       end
 
       it "does not raise error" do

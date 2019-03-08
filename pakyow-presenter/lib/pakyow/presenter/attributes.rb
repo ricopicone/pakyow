@@ -61,36 +61,26 @@ module Pakyow
         multiple: ATTRIBUTE_TYPE_BOOLEAN,
       }.freeze
 
-      extend Forwardable
-
       include Support::SafeStringHelpers
 
-      # @!method keys
-      #   Returns keys from {@attributes}.
-      #
-      # @!method []
-      #   Returns value of key from {@attributes}.
-      #
-      # @!method []=
-      #   Returns sets value for key on {@attributes}.
-      #
-      # @!method delete
-      #   Deletes key by name from {@attributes}.
-      #
-      def_delegators :@attributes, :keys, :each
+      extend Forwardable
+      def_delegators :@view, :object
+      def_delegators :object, :attributes
+      def_delegators :attributes, :keys, :each
 
       # Wraps a hash of view attributes
       #
       # @param attributes [Hash]
       #
-      def initialize(attributes)
-        attributes.replace(
-          ::Hash[attributes.attributes_hash.map { |name, value|
+      def initialize(view, attributes)
+        view.object = view.delegate.replace_node_attributes(
+          view.object,
+          ::Hash[attributes.hash.map { |name, value|
             [name, Attributes.typed_value_for_attribute_with_name(value, name)]
           }]
         )
 
-        @attributes = attributes
+        @view = view
       end
 
       def [](attribute)
@@ -98,9 +88,9 @@ module Pakyow
         attribute_type = self.class.type_of_attribute(attribute)
 
         if attribute_type == ATTRIBUTE_TYPE_BOOLEAN
-          @attributes.key?(attribute)
+          attributes.key?(attribute)
         else
-          @attributes[attribute] ||= attribute_type.new(self.class.default_value_for_attribute(attribute))
+          attributes[attribute] ||= attribute_type.new(self.class.default_value_for_attribute(attribute))
         end
       end
 
@@ -108,24 +98,28 @@ module Pakyow
         attribute = ensure_html_safety(normalize_attribute_name(attribute)).to_s
 
         if value.nil?
-          @attributes.delete(attribute)
+          @view.object = @view.delegate.delete_node_attribute(@view.object, attribute)
         elsif self.class.type_of_attribute(attribute) == ATTRIBUTE_TYPE_BOOLEAN
           if value
-            @attributes[attribute] = self.class.typed_value_for_attribute_with_name(attribute, attribute)
+            @view.object = @view.delegate.set_node_attribute(
+              @view.object, attribute, self.class.typed_value_for_attribute_with_name(attribute, attribute)
+            )
           else
-            @attributes.delete(attribute)
+            @view.object = @view.delegate.delete_node_attribute(@view.object, attribute)
           end
         else
-          @attributes[attribute] = self.class.typed_value_for_attribute_with_name(value, attribute)
+          @view.object = @view.delegate.set_node_attribute(
+            @view.object, attribute, self.class.typed_value_for_attribute_with_name(value, attribute)
+          )
         end
       end
 
       def has?(attribute)
-        @attributes.key?(normalize_attribute_name(attribute))
+        attributes.key?(normalize_attribute_name(attribute))
       end
 
       def delete(attribute)
-        @attributes.delete(normalize_attribute_name(attribute))
+        attributes.delete(normalize_attribute_name(attribute))
       end
 
       private

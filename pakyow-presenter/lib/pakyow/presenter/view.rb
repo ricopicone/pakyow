@@ -22,12 +22,13 @@ module Pakyow
 
         # Creates a view wrapping an object.
         #
-        def from_object(object)
+        def from_object(delegate, object)
           allocate.tap do |instance|
+            instance.instance_variable_set(:@delegate, delegate)
             instance.instance_variable_set(:@object, object)
-
             instance.instance_variable_set(:@info, {})
             instance.instance_variable_set(:@logical_path, nil)
+
             if object.respond_to?(:attributes)
               instance.attributes = object.attributes
             else
@@ -43,13 +44,13 @@ module Pakyow
       using Support::Refinements::Array::Ensurable
 
       extend Forwardable
+      def_delegators :@object, :type, :text, :html, :label, :labeled?
 
-      def_delegators :@object, :type, :text, :html, :label, :labeled?, :to_s, :to_html
+      # @api private
+      attr_reader :delegate, :object
 
-      # The object responsible for parsing, manipulating, and rendering
-      # the underlying HTML document for the view.
-      #
-      attr_reader :object
+      # @api private
+      attr_writer :object
 
       # The logical path to the view template.
       #
@@ -58,26 +59,26 @@ module Pakyow
       # Creates a view with +html+.
       #
       def initialize(html, info: {}, logical_path: nil)
-        @object = StringDoc.new(html)
-        @info, @logical_path = info, logical_path
-
-        if @object.respond_to?(:attributes)
-          self.attributes = @object.attributes
-        else
-          @attributes = nil
-        end
+        @delegate, @info, @logical_path = StringDoc.new(html), info, logical_path
+        @object, @attributes = nil, nil
       end
 
       def initialize_copy(_)
         super
 
         @info = @info.dup
-        @object = @object.dup
+        @delegate = @delegate.dup
 
-        if @object.respond_to?(:attributes)
-          self.attributes = @object.attributes
-        else
-          @attributes = nil
+        if @object
+          original = @object
+          @object = @object.dup
+          @delegate.replace_node(original, @object)
+
+          if @object.respond_to?(:attributes)
+            self.attributes = @object.attributes
+          else
+            @attributes = nil
+          end
         end
       end
 
@@ -91,7 +92,7 @@ module Pakyow
 
           found = each_binding(named).each_with_object([]) do |node, acc|
             if !channel || node.label(:combined_channel) == combined_channel || node.label(:combined_channel).end_with?(":" + combined_channel)
-              acc << View.from_object(node)
+              acc << View.from_object(@delegate, node)
             end
           end
 
@@ -117,7 +118,7 @@ module Pakyow
       #
       def find_all(named)
         each_binding(named).map { |node|
-          View.from_object(node)
+          View.from_object(@delegate, node)
         }
       end
 
@@ -125,7 +126,7 @@ module Pakyow
       #
       def form(name)
         @object.each_significant_node(:form) do |form_node|
-          return Form.from_object(form_node) if form_node.label(:binding) == name
+          return Form.from_object(@delegate, form_node) if form_node.label(:binding) == name
         end
 
         nil
@@ -135,7 +136,7 @@ module Pakyow
       #
       def forms
         @object.each_significant_node(:form).map { |node|
-          Form.from_object(node)
+          Form.from_object(@delegate, node)
         }
       end
 
@@ -143,7 +144,7 @@ module Pakyow
       #
       def components
         @object.each_significant_node_without_descending(:component).map { |node|
-          View.from_object(node)
+          View.from_object(@delegate, node)
         }
       end
 
@@ -161,7 +162,7 @@ module Pakyow
       #
       def head
         if head_node = @object.find_first_significant_node(:head)
-          View.from_object(head_node)
+          View.from_object(@delegate, head_node)
         else
           nil
         end
@@ -171,7 +172,7 @@ module Pakyow
       #
       def body
         if body_node = @object.find_first_significant_node(:body)
-          View.from_object(body_node)
+          View.from_object(@delegate, body_node)
         else
           nil
         end
@@ -181,7 +182,7 @@ module Pakyow
       #
       def title
         if title_node = @object.find_first_significant_node(:title)
-          View.from_object(title_node)
+          View.from_object(@delegate, title_node)
         else
           nil
         end
@@ -354,7 +355,7 @@ module Pakyow
       # Wraps +attributes+ in a {Attributes} instance.
       #
       def attributes=(attributes)
-        @attributes = Attributes.new(attributes)
+        @attributes = Attributes.new(self, attributes)
       end
       alias attrs= attributes=
 
@@ -363,6 +364,13 @@ module Pakyow
       def version
         (label(:version) || VersionedView::DEFAULT_VERSION).to_sym
       end
+
+      def render
+        @delegate.render(node: @object)
+      end
+      alias to_s render
+      alias to_xml render
+      alias to_html render
 
       # @api private
       def binding_name
@@ -384,7 +392,7 @@ module Pakyow
           :each_significant_node_without_descending
         end
 
-        @object.send(method, :binding) do |node|
+        @delegate.send(method, :binding, @object) do |node|
           if binding_scope?(node)
             yield node
           end

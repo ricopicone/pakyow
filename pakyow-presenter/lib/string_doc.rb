@@ -91,25 +91,25 @@ class StringDoc
   end
 
   module Traversal
-    def each(nodes = @nodes, &block)
-      return enum_for(:each) unless block_given?
+    def each(node = nil, nodes = @nodes, &block)
+      return enum_for(:each, node) unless block_given?
 
-      nodes.each do |node|
-        yield node
+      (node ? (@node_children[node] || []) : nodes).each do |each_node|
+        yield each_node
 
-        if children = @node_children[node]
-          each(children, &block)
+        if children = @node_children[each_node]
+          each(node, children, &block)
         end
       end
     end
 
     # Yields each node matching the significant type.
     #
-    def each_significant_node(type)
-      return enum_for(:each_significant_node, type) unless block_given?
+    def each_significant_node(type, node = nil)
+      return enum_for(:each_significant_node, type, node) unless block_given?
 
-      each do |node|
-        yield node if node.significant?(type)
+      each(node) do |each_node|
+        yield each_node if each_node.significant?(type)
       end
     end
 
@@ -361,41 +361,31 @@ class StringDoc
     end
 
     def set_node_label(node, key, value)
-      tap do
-        labels = node.labels.dup
-        labels[key.to_sym] = value
-        node_did_mutate(node, node.copy(labels: labels))
-      end
+      labels = node.labels.dup
+      labels[key.to_sym] = value
+      node_did_mutate(node, node.copy(labels: labels))
     end
 
     def delete_node_label(node, key)
-      tap do
-        labels = node.labels.dup
-        labels.delete(key.to_sym)
-        node_did_mutate(node, node.copy(labels: labels))
-      end
+      labels = node.labels.dup
+      labels.delete(key.to_sym)
+      node_did_mutate(node, node.copy(labels: labels))
     end
 
     def set_node_attribute(node, key, value)
-      tap do
-        attributes = node.attributes.hash.dup
-        attributes[key.to_s] = value
-        node_did_mutate(node, node.copy(attributes: Attributes.new(attributes)))
-      end
+      attributes = node.attributes.hash.dup
+      attributes[key.to_s] = value
+      node_did_mutate(node, node.copy(attributes: Attributes.new(attributes)))
     end
 
     def delete_node_attribute(node, key)
-      tap do
-        attributes = node.attributes.hash.dup
-        attributes.delete(key.to_s)
-        node_did_mutate(node, node.copy(attributes: Attributes.new(attributes)))
-      end
+      attributes = node.attributes.hash.dup
+      attributes.delete(key.to_s)
+      node_did_mutate(node, node.copy(attributes: Attributes.new(attributes)))
     end
 
     def replace_node_attributes(node, hash)
-      tap do
-        node_did_mutate(node, node.copy(attributes: Attributes.new(hash)))
-      end
+      node_did_mutate(node, node.copy(attributes: Attributes.new(hash)))
     end
 
     private
@@ -419,11 +409,17 @@ class StringDoc
 
       # Reassign the current node's children.
       #
-      @node_children[mutated_node] = @node_children.delete(node)
+      if value = @node_children.delete(node)
+        @node_children[mutated_node] = value
+      end
 
       # Reassign the current node's transformations.
       #
-      @node_transformations[mutated_node] = @node_transformations.delete(node)
+      if value = @node_transformations.delete(node)
+        @node_transformations[mutated_node] = value
+      end
+
+      mutated_node
     end
 
     def set_node_children(node, children)
@@ -450,43 +446,49 @@ class StringDoc
       (@node_transformations[node] ||= { high: [], default: [], low: [] })[priority] << block
     end
 
-    def render(output = String.new, nodes: @nodes, context: self, on_error: nil)
-      nodes.each do |node|
+    def render(output = String.new, node: nil, nodes: @nodes, context: self, on_error: nil)
+      nodes = if node
+        [node]
+      else
+        nodes
+      end
+
+      nodes.each do |each_node|
         catch :rendered_node do
-          if prioritized_transformations = @node_transformations.delete(node)
+          if prioritized_transformations = @node_transformations.delete(each_node)
             prioritized_transformations.each_value do |transformations|
               transformations.each do |transformation|
-                node = context.instance_exec(node, &transformation)
+                each_node = context.instance_exec(each_node, &transformation)
               rescue => error
-                node = if on_error
-                  on_error.call(error, node)
+                each_node = if on_error
+                  on_error.call(error, each_node)
                 else
                   nil
                 end
               ensure
-                if node.nil?
+                if each_node.nil?
                   throw :rendered_node
-                elsif node.is_a?(String)
-                  output << node
+                elsif each_node.is_a?(String)
+                  output << each_node
                   throw :rendered_node
                 end
               end
             end
           end
 
-          output << node.tag_open_start
+          output << each_node.tag_open_start
 
-          node.attributes.each_string do |attribute_string|
+          each_node.attributes.each_string do |attribute_string|
             output << attribute_string
           end
 
-          output << node.tag_open_end
+          output << each_node.tag_open_end
 
-          if children = @node_children[node]
+          if children = @node_children[each_node]
             render(output, nodes: children, context: context, on_error: on_error)
           end
 
-          output << node.tag_close
+          output << each_node.tag_close
         end
       end
 

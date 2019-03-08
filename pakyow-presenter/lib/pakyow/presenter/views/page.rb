@@ -55,14 +55,13 @@ module Pakyow
         [View.from_object(@object)].concat(@containers.values)
       end
 
-      protected
+      private
 
       WITHIN_REGEX = /<!--\s*@within\s*([a-zA-Z0-9\-_]*)\s*-->(.*?)<!--\s*\/within\s*-->/m
 
       def parse_content(html)
         html.scan(WITHIN_REGEX) do |match|
-          container_name = match[0].to_sym
-          @containers[container_name] = View.from_object(StringDoc.new(match[1]))
+          @containers[match[0].to_sym] = View.from_object(StringDoc.new(match[1]), nil)
         end
 
         html.gsub!(WITHIN_REGEX, "")

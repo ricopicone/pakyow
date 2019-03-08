@@ -39,6 +39,13 @@ class StringDoc
       @tag_open_start, @attributes, @tag_open_end, @tag_close, @significance, @labels = tag_open_start, attributes, tag_open_end, tag_close, significance, labels
     end
 
+    def initialize_copy(_)
+      super
+
+      @attributes = @attributes.dup
+      @labels = @labels.dup
+    end
+
     def copy(labels: @labels, attributes: @attributes)
       self.class.allocate.tap do |copy|
         copy.instance_variable_set(:@tag_open_start, @tag_open_start)

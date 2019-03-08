@@ -20,6 +20,14 @@ class StringDoc
       }]
     end
 
+    def initialize_copy(_)
+      super
+
+      @hash = Hash[@hash.map { |key, value|
+        [key, value.dup]
+      }]
+    end
+
     def key?(key)
       @hash.key?(key.to_s)
     end
