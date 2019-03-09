@@ -105,10 +105,10 @@ class StringDoc
     def each(node = nil, nodes = @nodes, &block)
       return enum_for(:each, node) unless block_given?
 
-      (node ? (@node_children[node] || []) : nodes).each do |each_node|
+      (node ? (@node_children[node.object_id] || []) : nodes).each do |each_node|
         yield each_node
 
-        if children = @node_children[each_node]
+        if children = @node_children[each_node.object_id]
           each(nil, children, &block)
         end
       end
@@ -129,10 +129,10 @@ class StringDoc
     def each_significant_node_without_descending(type, node = nil, nodes = @nodes, &block)
       return enum_for(:each_significant_node_without_descending, type, node) unless block_given?
 
-      (node ? (@node_children[node] || []) : nodes).each do |each_node|
+      (node ? (@node_children[node.object_id] || []) : nodes).each do |each_node|
         if each_node.significant?(type)
           yield each_node
-        elsif children = @node_children[each_node]
+        elsif children = @node_children[each_node.object_id]
           each_significant_node_without_descending(type, nil, children, &block)
         end
       end
@@ -276,7 +276,7 @@ class StringDoc
         remove_node_children(node)
         replacement = self.class.ensure_string_doc_object(replacement)
         replacement_nodes = self.class.nodes_from_doc_or_string(replacement)
-        @node_children[node] = replacement_nodes
+        @node_children[node.object_id] = replacement_nodes
 
         if replacement.is_a?(StringDoc)
           replacement_nodes.each do |each_node|
@@ -323,7 +323,7 @@ class StringDoc
 
     def remove_node_children(node)
       tap do
-        @node_children.delete(node)
+        @node_children.delete(node.object_id)
       end
     end
 
@@ -360,7 +360,7 @@ class StringDoc
       tap do
         appendable = self.class.ensure_string_doc_object(appendable)
         appendable_nodes = self.class.nodes_from_doc_or_string(appendable)
-        (@node_children[node] ||= []).concat(appendable_nodes)
+        (@node_children[node.object_id] ||= []).concat(appendable_nodes)
 
         if appendable.is_a?(StringDoc)
           appendable_nodes.each do |appendable_node|
@@ -380,7 +380,7 @@ class StringDoc
       tap do
         prependable = self.class.ensure_string_doc_object(prependable)
         prependable_nodes = self.class.nodes_from_doc_or_string(prependable)
-        (@node_children[node] ||= []).unshift(*prependable_nodes)
+        (@node_children[node.object_id] ||= []).unshift(*prependable_nodes)
 
         if prependable.is_a?(StringDoc)
           prependable_nodes.each do |prependable_node|
@@ -443,29 +443,29 @@ class StringDoc
 
       # Reassign the current node's children.
       #
-      if value = @node_children.delete(node)
-        @node_children[mutated_node] = value
+      if value = @node_children.delete(node.object_id)
+        @node_children[mutated_node.object_id] = value
       end
 
       # Reassign the current node's transformations.
       #
-      if value = @node_transformations.delete(node)
-        @node_transformations[mutated_node] = value
+      if value = @node_transformations.delete(node.object_id)
+        @node_transformations[mutated_node.object_id] = value
       end
 
       mutated_node
     end
 
     def set_node_children(node, children)
-      @node_children[node] = []
+      @node_children[node.object_id] = []
       children.each do |child, nested_children|
-        @node_children[node] << child
+        @node_children[node.object_id] << child
         set_node_children(child, nested_children)
       end
     end
 
     def set_node_transformations(node, tuple)
-      @node_transformations[node] = tuple[0]
+      @node_transformations[node.object_id] = tuple[0]
 
       if nested = tuple[1]
         nested.each do |nested_node, nested_transformations|
@@ -477,7 +477,7 @@ class StringDoc
 
   module Rendering
     def transform(node, priority: :default, &block)
-      (@node_transformations[node] ||= { high: [], default: [], low: [] })[priority] << block
+      (@node_transformations[node.object_id] ||= { high: [], default: [], low: [] })[priority] << block
     end
 
     def render(output = String.new, node: nil, nodes: @nodes, context: self, on_error: nil)
@@ -489,7 +489,7 @@ class StringDoc
 
       nodes.each do |each_node|
         catch :rendered_node do
-          if prioritized_transformations = @node_transformations.delete(each_node)
+          if prioritized_transformations = @node_transformations.delete(each_node.object_id)
             prioritized_transformations.each_value do |transformations|
               transformations.each do |transformation|
                 each_node = context.instance_exec(each_node, &transformation)
@@ -518,7 +518,7 @@ class StringDoc
 
           output << each_node.tag_open_end
 
-          if children = @node_children[each_node]
+          if children = @node_children[each_node.object_id]
             render(output, nodes: children, context: context, on_error: on_error)
           end
 
@@ -535,7 +535,7 @@ class StringDoc
 
   module Introspection
     def node_html(node)
-      render(nodes: @node_children[node].to_a)
+      render(nodes: @node_children[node.object_id].to_a)
     end
 
     REGEX_TAGS = /<[^>]*>/
@@ -593,7 +593,7 @@ class StringDoc
   #   [[child, ...], ...]
   #
   def children_for_node(node)
-    (@node_children[node] || []).map { |child|
+    (@node_children[node.object_id] || []).map { |child|
       [child, children_for_node(child)]
     }
   end
@@ -603,7 +603,7 @@ class StringDoc
   #   [transformations, [child, transformations, ...]]
   #
   def transformations_for_node(node)
-    [@node_transformations[node] || {}, (@node_children[node] || []).map { |child| [child, transformations_for_node(child)] }]
+    [@node_transformations[node.object_id] || {}, (@node_children[node.object_id] || []).map { |child| [child, transformations_for_node(child)] }]
   end
 
   def ==(other)
@@ -616,12 +616,12 @@ class StringDoc
 
   def deep_dup_node(node, target, source = self)
     node.dup.tap do |duped_node|
-      if transformations = source.node_transformations[node]
-        target.node_transformations[duped_node] = transformations.deep_dup
+      if transformations = source.node_transformations[node.object_id]
+        target.node_transformations[duped_node.object_id] = transformations.deep_dup
       end
 
-      if children = source.node_children[node]
-        target.node_children[duped_node] = children.map { |child_node|
+      if children = source.node_children[node.object_id]
+        target.node_children[duped_node.object_id] = children.map { |child_node|
           deep_dup_node(child_node, target, source)
         }
       end
@@ -666,7 +666,7 @@ class StringDoc
       if node
         if element.is_a?(Oga::XML::Element)
           node.close(element.name)
-          @node_children[node] = build(element)
+          @node_children[node.object_id] = build(element)
         end
 
         nodes << add_node(node, top_level)
