@@ -520,7 +520,7 @@ class StringDoc
           if prioritized_transformations = @node_transformations[each_node.object_id]
             prioritized_transformations.each_value do |transformations|
               transformations.each do |transformation|
-                each_node = context.instance_exec(each_node, &transformation)
+                each_node = context.instance_exec(each_node, self, &transformation)
               rescue => error
                 each_node = if on_error
                   on_error.call(error, each_node)
