@@ -228,12 +228,14 @@ class StringDoc
   module Mutation
     def replace_node(node_to_replace, replacement, children = [], transformations = {})
       tap do
+        node_to_replace_object_id = node_to_replace.object_id
+
         replacement = self.class.ensure_string_doc_object(replacement)
         replacement_nodes = self.class.nodes_from_doc_or_string(replacement)
 
         # Replace current node at the top level.
         #
-        if index = @nodes.find_index { |n| n.object_id == node_to_replace.object_id }
+        if index = @nodes.find_index { |n| n.object_id == node_to_replace_object_id }
           @nodes.insert(index + 1, *replacement_nodes)
           @nodes.delete_at(index)
         end
@@ -241,7 +243,7 @@ class StringDoc
         # Replace current node if it is a child of another node.
         #
         @node_children.each do |key, node_children|
-          if index = node_children.find_index { |n| n.object_id == node_to_replace.object_id }
+          if index = node_children.find_index { |n| n.object_id == node_to_replace_object_id }
             node_children = node_children.dup
             node_children.insert(index + 1, *replacement_nodes)
             node_children.delete_at(index)
@@ -307,16 +309,18 @@ class StringDoc
 
     def remove_node(node_to_remove)
       tap do
+        node_to_remove_object_id = node_to_remove.object_id
+
         # Remove node at the top level.
         #
-        if index = @nodes.find_index { |n| n.object_id == node_to_remove.object_id }
+        if index = @nodes.find_index { |n| n.object_id == node_to_remove_object_id }
           @nodes.delete_at(index)
         end
 
         # Remove node if it is a child of another node.
         #
         @node_children.each do |key, node_children|
-          if index = node_children.find_index { |n| n.object_id == node_to_remove.object_id }
+          if index = node_children.find_index { |n| n.object_id == node_to_remove_object_id }
             children = node_children.dup
             children.delete_at(index)
             @node_children[key] = children
@@ -333,14 +337,16 @@ class StringDoc
 
     def insert_after_node(node, insertable, children = [], transformations = {})
       tap do
+        node_object_id = node.object_id
+
         insertable = self.class.ensure_string_doc_object(insertable)
         insertable_nodes = self.class.nodes_from_doc_or_string(insertable)
 
-        if index = @nodes.find_index { |n| n.object_id == node.object_id }
+        if index = @nodes.find_index { |n| n.object_id == node_object_id }
           @nodes.insert(index + 1, *insertable_nodes)
         else
           @node_children.each do |key, children_for_node|
-            if index = children_for_node.find_index { |n| n.object_id == node.object_id }
+            if index = children_for_node.find_index { |n| n.object_id == node_object_id }
               @node_children[key] = children_for_node.dup.insert(index + 1, *insertable_nodes)
             end
           end
@@ -362,16 +368,18 @@ class StringDoc
 
     def append_to_node(node, appendable, children = [], transformations = {})
       tap do
+        node_object_id = node.object_id
+
         appendable = self.class.ensure_string_doc_object(appendable)
         appendable_nodes = self.class.nodes_from_doc_or_string(appendable)
 
-        node_children = if current_node_children = @node_children[node.object_id]
+        node_children = if current_node_children = @node_children[node_object_id]
           current_node_children.dup
         else
           []
         end
 
-        @node_children[node.object_id] = node_children.concat(appendable_nodes)
+        @node_children[node_object_id] = node_children.concat(appendable_nodes)
 
         if appendable.is_a?(StringDoc)
           appendable_nodes.each do |appendable_node|
@@ -389,16 +397,18 @@ class StringDoc
 
     def prepend_to_node(node, prependable, children = [], transformations = {})
       tap do
+        node_object_id = node.object_id
+
         prependable = self.class.ensure_string_doc_object(prependable)
         prependable_nodes = self.class.nodes_from_doc_or_string(prependable)
 
-        node_children = if current_node_children = @node_children[node.object_id]
+        node_children = if current_node_children = @node_children[node_object_id]
           current_node_children.dup
         else
           []
         end
 
-        @node_children[node.object_id] = node_children.unshift(*prependable_nodes)
+        @node_children[node_object_id] = node_children.unshift(*prependable_nodes)
 
         if prependable.is_a?(StringDoc)
           prependable_nodes.each do |prependable_node|
@@ -443,9 +453,12 @@ class StringDoc
     end
 
     def node_did_mutate(node, mutated_node)
+      node_object_id = node.object_id
+      mutated_node_object_id = mutated_node.object_id
+
       # Replace the current node with the mutated node.
       #
-      if index = @nodes.find_index { |n| n.object_id == node.object_id }
+      if index = @nodes.find_index { |n| n.object_id == node_object_id }
         @nodes.insert(index + 1, mutated_node)
         @nodes.delete_at(index)
       end
@@ -453,7 +466,7 @@ class StringDoc
       # Replace current node if it is a child of another node.
       #
       @node_children.each_value do |node_children|
-        if index = node_children.find_index { |n| n.object_id == node.object_id }
+        if index = node_children.find_index { |n| n.object_id == node_object_id }
           node_children.insert(index + 1, mutated_node)
           node_children.delete_at(index)
         end
@@ -461,23 +474,24 @@ class StringDoc
 
       # Reassign the current node's children.
       #
-      if value = @node_children.delete(node.object_id)
-        @node_children[mutated_node.object_id] = value
+      if value = @node_children.delete(node_object_id)
+        @node_children[mutated_node_object_id] = value
       end
 
       # Reassign the current node's transformations.
       #
-      if value = @node_transformations.delete(node.object_id)
-        @node_transformations[mutated_node.object_id] = value
+      if value = @node_transformations.delete(node_object_id)
+        @node_transformations[mutated_node_object_id] = value
       end
 
       mutated_node
     end
 
     def set_node_children(node, children)
-      @node_children[node.object_id] = []
+      node_object_id = node.object_id
+      @node_children[node_object_id] = []
       children.each do |child, nested_children|
-        @node_children[node.object_id] << child
+        @node_children[node_object_id] << child
         set_node_children(child, nested_children)
       end
     end
@@ -499,13 +513,7 @@ class StringDoc
     end
 
     def render(output = String.new, node: nil, nodes: @nodes, context: self, on_error: nil)
-      nodes = if node
-        [node]
-      else
-        nodes
-      end
-
-      nodes.each do |each_node|
+      (node ? [node] : nodes).each do |each_node|
         catch :rendered_node do
           if prioritized_transformations = @node_transformations[each_node.object_id]
             prioritized_transformations.each_value do |transformations|
@@ -518,9 +526,10 @@ class StringDoc
                   nil
                 end
               ensure
-                if each_node.nil?
+                case each_node
+                when NilClass
                   throw :rendered_node
-                elsif each_node.is_a?(String)
+                when String
                   output << each_node
                   throw :rendered_node
                 end
