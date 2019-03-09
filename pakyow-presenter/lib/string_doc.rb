@@ -302,9 +302,7 @@ class StringDoc
     end
 
     def set_node_html(node, html)
-      node_for_html = Node.new(html.to_s)
-      replace_node_children(node, node_for_html)
-      node_for_html
+      @node_children[node.object_id] = [html.to_s]; node
     end
 
     def remove_node(node_to_remove)
@@ -514,6 +512,10 @@ class StringDoc
 
     def render(output = String.new, node: nil, nodes: @nodes, context: self, on_error: nil)
       (node ? [node] : nodes).each do |each_node|
+        if each_node.is_a?(String)
+          output << each_node; next
+        end
+
         catch :rendered_node do
           if prioritized_transformations = @node_transformations[each_node.object_id]
             prioritized_transformations.each_value do |transformations|
