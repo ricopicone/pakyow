@@ -516,43 +516,7 @@ class StringDoc
           output << each_node; next
         end
 
-        catch :rendered_node do
-          if prioritized_transformations = @node_transformations[each_node.object_id]
-            prioritized_transformations.each_value do |transformations|
-              transformations.each do |transformation|
-                each_node = context.instance_exec(each_node, self, &transformation)
-              rescue => error
-                each_node = if on_error
-                  on_error.call(error, each_node)
-                else
-                  nil
-                end
-              ensure
-                case each_node
-                when NilClass
-                  throw :rendered_node
-                when String
-                  output << each_node
-                  throw :rendered_node
-                end
-              end
-            end
-          end
-
-          output << each_node.tag_open_start
-
-          each_node.attributes.each_string do |attribute_string|
-            output << attribute_string
-          end
-
-          output << each_node.tag_open_end
-
-          if children = @node_children[each_node.object_id]
-            render(output, nodes: children, context: context, on_error: on_error)
-          end
-
-          output << each_node.tag_close
-        end
+        render_node(output, each_node, context, on_error)
       end
 
       output
@@ -560,6 +524,46 @@ class StringDoc
     alias to_s render
     alias to_xml render
     alias to_html render
+
+    private
+
+    def render_node(output, each_node, context, on_error)
+      if prioritized_transformations = @node_transformations[each_node.object_id]
+        prioritized_transformations.each_value do |transformations|
+          transformations.each do |transformation|
+            each_node = context.instance_exec(each_node, self, &transformation)
+          rescue => error
+            each_node = if on_error
+              on_error.call(error, each_node)
+            else
+              nil
+            end
+          ensure
+            case each_node
+            when NilClass
+              return
+            when String
+              output << each_node
+              return
+            end
+          end
+        end
+      end
+
+      output << each_node.tag_open_start
+
+      each_node.attributes.each_string do |attribute_string|
+        output << attribute_string
+      end
+
+      output << each_node.tag_open_end
+
+      if children = @node_children[each_node.object_id]
+        render(output, nodes: children, context: context, on_error: on_error)
+      end
+
+      output << each_node.tag_close
+    end
   end
 
   module Introspection
