@@ -4,6 +4,7 @@ require "cgi"
 
 require "oga"
 
+require "pakyow/support/deep_dup"
 require "pakyow/support/silenceable"
 
 class StringDoc
@@ -232,7 +233,7 @@ class StringDoc
 
         # Replace current node at the top level.
         #
-        if index = @nodes.index(node_to_replace)
+        if index = @nodes.find_index { |n| n.object_id == node_to_replace.object_id }
           @nodes.insert(index + 1, *replacement_nodes)
           @nodes.delete_at(index)
         end
@@ -240,7 +241,7 @@ class StringDoc
         # Replace current node if it is a child of another node.
         #
         @node_children.each_value do |node_children|
-          if index = node_children.index(node_to_replace)
+          if index = node_children.find_index { |n| n.object_id == node_to_replace.object_id }
             node_children.insert(index + 1, *replacement_nodes)
             node_children.delete_at(index)
           end
@@ -306,14 +307,14 @@ class StringDoc
       tap do
         # Remove node at the top level.
         #
-        if index = @nodes.index(node_to_remove)
+        if index = @nodes.find_index { |n| n.object_id == node_to_remove.object_id }
           @nodes.delete_at(index)
         end
 
         # Remove node if it is a child of another node.
         #
         @node_children.each_value do |node_children|
-          if index = node_children.index(node_to_remove)
+          if index = node_children.find_index { |n| n.object_id == node_to_remove.object_id }
             node_children.delete_at(index)
           end
         end
@@ -322,11 +323,7 @@ class StringDoc
 
     def remove_node_children(node)
       tap do
-        if children = @node_children.delete(node)
-          children.each do |child|
-            remove_node(child)
-          end
-        end
+        @node_children.delete(node)
       end
     end
 
@@ -335,11 +332,11 @@ class StringDoc
         insertable = self.class.ensure_string_doc_object(insertable)
         insertable_nodes = self.class.nodes_from_doc_or_string(insertable)
 
-        if index = @nodes.index(node)
+        if index = @nodes.find_index { |n| n.object_id == node.object_id }
           @nodes.insert(index + 1, *insertable_nodes)
         else
           @node_children.values.each do |children_for_node|
-            if index = children_for_node.index(node)
+            if index = children_for_node.find_index { |n| n.object_id == node.object_id }
               children_for_node.insert(index + 1, *insertable_nodes)
             end
           end
@@ -430,7 +427,7 @@ class StringDoc
     def node_did_mutate(node, mutated_node)
       # Replace the current node with the mutated node.
       #
-      if index = @nodes.index(node)
+      if index = @nodes.find_index { |n| n.object_id == node.object_id }
         @nodes.insert(index + 1, mutated_node)
         @nodes.delete_at(index)
       end
@@ -438,7 +435,7 @@ class StringDoc
       # Replace current node if it is a child of another node.
       #
       @node_children.each_value do |node_children|
-        if index = node_children.index(node)
+        if index = node_children.find_index { |n| n.object_id == node.object_id }
           node_children.insert(index + 1, mutated_node)
           node_children.delete_at(index)
         end
@@ -563,16 +560,32 @@ class StringDoc
     build(Oga.parse_html(html), true)
   end
 
+  def self.empty
+    allocate.tap do |instance|
+      instance.instance_variable_set(:@nodes, [])
+      instance.instance_variable_set(:@node_children, {})
+      instance.instance_variable_set(:@node_transformations, {})
+    end
+  end
+
   def initialize_copy(_)
     super
 
     @nodes = @nodes.dup
     @node_children = Hash[@node_children.map { |key, value| [key, value.dup] }]
-    @node_transformations = @node_transformations.dup
+    @node_transformations = Hash[@node_transformations.map { | key, value| [key, value.dup] }]
   end
 
-  def ==(other)
-    other.is_a?(StringDoc) && @nodes == other.nodes && @node_children == other.node_children
+  def instance(node = nil)
+    StringDoc.empty.tap do |instance|
+      if node
+        instance.nodes << deep_dup_node(node, instance)
+      else
+        @nodes.each do |each_node|
+          instance.nodes << deep_dup_node(each_node, instance)
+        end
+      end
+    end
   end
 
   # Returns an array of tuples representing child nodes and their children:
@@ -593,7 +606,27 @@ class StringDoc
     [@node_transformations[node] || {}, (@node_children[node] || []).map { |child| [child, transformations_for_node(child)] }]
   end
 
+  def ==(other)
+    other.is_a?(StringDoc) && @nodes == other.nodes && @node_children == other.node_children
+  end
+
   private
+
+  using Pakyow::Support::DeepDup
+
+  def deep_dup_node(node, target, source = self)
+    node.dup.tap do |duped_node|
+      if transformations = source.node_transformations[node]
+        target.node_transformations[duped_node] = transformations.deep_dup
+      end
+
+      if children = source.node_children[node]
+        target.node_children[duped_node] = children.map { |child_node|
+          deep_dup_node(child_node, target, source)
+        }
+      end
+    end
+  end
 
   def build(oga, top_level = false)
     nodes = []

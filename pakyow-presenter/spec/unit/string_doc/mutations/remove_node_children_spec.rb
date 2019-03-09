@@ -31,6 +31,21 @@ RSpec.describe "StringDoc#remove_node_children" do
     end
   end
 
+  context "node remove has deeply nested children" do
+    let :html do
+      <<~HTML
+        <article binding="post">
+          <h1 binding="title">title goes here</h1>
+        </article>
+      HTML
+    end
+
+    it "removes the deeply nested children" do
+      doc.remove_node_children(node)
+      expect(doc.to_s).to eq("<article data-b=\"post\" data-c=\"article\"></article>")
+    end
+  end
+
   context "node to remove does not exist" do
     it "does not change the doc" do
       expect {

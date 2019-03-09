@@ -12,8 +12,8 @@ module Pakyow
           self.new(name.to_sym, content || File.read(path), **args)
         end
 
-        def from_object(name, object)
-          super(object).tap do |instance|
+        def from_object(name, delegate, object)
+          super(delegate, object).tap do |instance|
             instance.instance_variable_set(:@name, name)
           end
         end

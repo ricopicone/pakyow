@@ -146,6 +146,93 @@ RSpec.describe "StringDoc#insert_after_node" do
         expect(doc.to_s).to eq("<article data-b=\"post\" data-c=\"article\"><h1 data-b=\"title\" data-c=\"article\">title goes here</h1></article><article data-b=\"comment\" data-c=\"article\">transformed</article>")
       end
     end
+
+    describe "inserting two docs, one after the other" do
+      let :node do
+        doc.find_significant_nodes_with_name(:binding, :title)[0]
+      end
+
+      let :insertable do
+        StringDoc.new(
+          <<~HTML
+            <div binding="foo">foo</div>
+          HTML
+        )
+      end
+
+      let :insertable2 do
+        StringDoc.new(
+          <<~HTML
+            <div binding="bar">bar</div>
+          HTML
+        )
+      end
+
+      it "inserts correctly" do
+        doc.insert_after_node(node, insertable)
+        doc.insert_after_node(insertable.nodes[0], insertable2)
+        expect(doc.to_s).to eq("<article data-b=\"post\" data-c=\"article\"><h1 data-b=\"title\" data-c=\"article\">title goes here</h1><div data-b=\"foo\">foo</div><div data-b=\"bar\">bar</div></article>")
+      end
+    end
+
+    describe "inserting two docs, the second being a dup of the first" do
+      let :node do
+        doc.find_significant_nodes_with_name(:binding, :title)[0]
+      end
+
+      let :insertable do
+        StringDoc.new(
+          <<~HTML
+            <div binding="foo">
+              <div binding="bar">
+                <div binding="baz">baz</div>
+              </div>
+            </div>
+          HTML
+        )
+      end
+
+      it "inserts correctly" do
+        doc.insert_after_node(node, insertable)
+        doc.insert_after_node(insertable.nodes[0], insertable.dup)
+        expect(doc.to_s).to eq("<article data-b=\"post\" data-c=\"article\"><h1 data-b=\"title\" data-c=\"article\">title goes here</h1><div data-b=\"foo\"><div data-b=\"bar\"><div data-b=\"baz\">baz</div></div></div><div data-b=\"foo\"><div data-b=\"bar\"><div data-b=\"baz\">baz</div></div></div></article>")
+      end
+    end
+
+    describe "inserting two docs, the second being an instance of the first" do
+      let :node do
+        doc.find_significant_nodes_with_name(:binding, :title)[0]
+      end
+
+      let :insertable do
+        StringDoc.new(
+          <<~HTML
+            <div binding="foo">
+              <div binding="bar">
+                <div binding="baz">baz</div>
+              </div>
+            </div>
+          HTML
+        )
+      end
+
+      it "inserts correctly" do
+        doc.insert_after_node(node, insertable)
+        doc.insert_after_node(insertable.nodes[0], insertable.instance)
+        expect(doc.to_s).to eq("<article data-b=\"post\" data-c=\"article\"><h1 data-b=\"title\" data-c=\"article\">title goes here</h1><div data-b=\"foo\"><div data-b=\"bar\"><div data-b=\"baz\">baz</div></div></div><div data-b=\"foo\"><div data-b=\"bar\"><div data-b=\"baz\">baz</div></div></div></article>")
+      end
+
+      it "separates mutations between the instances" do
+        doc.insert_after_node(node, insertable)
+        second_instance = insertable.instance
+        doc.insert_after_node(insertable.nodes[0], second_instance)
+        doc.set_node_html(second_instance.find_significant_nodes_with_name(:binding, :baz)[0], "qux")
+        third_instance = insertable.instance
+        doc.insert_after_node(second_instance.nodes[0], third_instance)
+        doc.set_node_html(third_instance.find_significant_nodes_with_name(:binding, :baz)[0], "meh")
+        expect(doc.to_s).to eq("<article data-b=\"post\" data-c=\"article\"><h1 data-b=\"title\" data-c=\"article\">title goes here</h1><div data-b=\"foo\"><div data-b=\"bar\"><div data-b=\"baz\">baz</div></div></div><div data-b=\"foo\"><div data-b=\"bar\"><div data-b=\"baz\">qux</div></div></div><div data-b=\"foo\"><div data-b=\"bar\"><div data-b=\"baz\">meh</div></div></div></article>")
+      end
+    end
   end
 
   context "the node does not exist" do

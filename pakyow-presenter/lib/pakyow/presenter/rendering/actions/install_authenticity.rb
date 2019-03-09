@@ -9,9 +9,13 @@ module Pakyow
           renderer.presenter.view.delegate.each_significant_node(:meta, renderer.presenter.view.object) do |node|
             case node.attributes[:name]
             when "pw-authenticity-token"
-              node.attributes[:content] = renderer.connection.verifier.sign(renderer.authenticity_client_id)
+              renderer.presenter.view.delegate.set_node_attribute(
+                node, :content, renderer.connection.verifier.sign(renderer.authenticity_client_id)
+              )
             when "pw-authenticity-param"
-              node.attributes[:content] = renderer.connection.app.config.security.csrf.param.to_s
+              renderer.presenter.view.delegate.set_node_attribute(
+                node, :content, renderer.connection.app.config.security.csrf.param.to_s
+              )
             end
           end
         end

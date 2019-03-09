@@ -29,7 +29,11 @@ RSpec.describe "form metadata" do
         Proc.new do
           presenter "/form" do
             def perform
-              forms[0].view.label(:metadata)[:foo] = "bar"
+              metadata = forms[0].view.label(:metadata).dup
+              metadata[:foo] = "bar"
+              forms[0].view.object = forms[0].view.delegate.set_node_label(
+                forms[0].view.object, :metadata, metadata
+              )
             end
           end
         end
@@ -71,7 +75,11 @@ RSpec.describe "form metadata" do
             def perform
               form(:post).with do |form|
                 form.create
-                form.view.label(:metadata)[:foo] = "bar"
+                metadata = form.view.label(:metadata).dup
+                metadata[:foo] = "bar"
+                form.view.object = form.view.delegate.set_node_label(
+                  form.view.object, :metadata, metadata
+                )
               end
             end
           end

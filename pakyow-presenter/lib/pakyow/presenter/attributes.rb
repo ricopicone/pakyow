@@ -123,7 +123,9 @@ module Pakyow
       end
 
       def delete(attribute)
-        attributes.delete(normalize_attribute_name(attribute))
+        @view.object = @view.delegate.delete_node_attribute(
+          @view.object, normalize_attribute_name(attribute)
+        )
       end
 
       private

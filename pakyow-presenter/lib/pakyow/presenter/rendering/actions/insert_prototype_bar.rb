@@ -8,7 +8,7 @@ module Pakyow
         def call(renderer)
           if renderer.rendering_prototype?
             if body_node = renderer.presenter.view.delegate.find_first_significant_node(:body, renderer.presenter.view.object)
-              body_node.append <<~HTML
+              renderer.presenter.view.delegate.append_to_node(body_node, <<~HTML)
                 <style>
                   .pw-prototype {
                     font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Oxygen-Sans,Ubuntu,Cantarell,"Helvetica Neue",sans-serif;
@@ -54,7 +54,7 @@ module Pakyow
         private
 
         def ui_modes_html(renderer)
-          modes = renderer.presenter.view.object.each_significant_node(:mode).map { |node|
+          modes = renderer.presenter.view.delegate.each_significant_node(:mode, renderer.presenter.view.object).map { |node|
             node.label(:mode)
           }
 

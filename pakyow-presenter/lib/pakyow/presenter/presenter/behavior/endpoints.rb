@@ -159,23 +159,24 @@ module Pakyow
 
           def wrap_endpoint_for_removal(endpoint)
             if endpoint[:node].tagname != "form"
-              View.from_object(@view.delegate, endpoint[:node]).replace(
-                View.new(
-                  <<~HTML
-                    <form action="#{endpoint[:path]}" method="post" data-ui="confirmable">
-                      <input type="hidden" name="_method" value="delete">
+              @view.delegate.replace_node(endpoint[:node], <<~HTML)
+                <form action="#{endpoint[:path]}" method="post" data-ui="confirmable">
+                  <input type="hidden" name="_method" value="delete">
 
-                      #{endpoint[:node]}
-                    </form>
-                  HTML
-                )
-              )
+                  #{@view.delegate.to_s(node: endpoint[:node])}
+                </form>
+              HTML
             end
           end
 
           def setup_endpoint(endpoint)
-            endpoint_view = View.from_object(@view.delegate, endpoint[:node])
-            endpoint_action_view = View.from_object(@view.delegate, find_endpoint_action_node(endpoint[:node]))
+            endpoint_view = View.from_object(
+              @view.delegate, endpoint[:node]
+            )
+
+            endpoint_action_view = View.from_object(
+              @view.delegate, find_endpoint_action_node(endpoint_view.object)
+            )
 
             if endpoint_action_view.object.tagname == "a"
               if endpoint[:path]

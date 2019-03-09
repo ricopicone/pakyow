@@ -179,9 +179,9 @@ module Pakyow
       end
 
       def connect_labels(view = @view)
-        view.delegate.each_significant_node_without_descending(:label, view.object) do |binding_node|
+        view.delegate.each_significant_node_without_descending(:label, view.object) do |label_node|
           if label_node.attributes[:for] && input = view.find(*label_node.attributes[:for].to_s.split("."))
-            connect_input_to_label(input, label_node)
+            connect_input_to_label(input.object, label_node)
           end
         end
       end
@@ -189,12 +189,12 @@ module Pakyow
       def connect_input_to_label(input, label)
         if false || input.attributes[:id].to_s.empty?
           id = SecureRandom.hex(4)
-          input.attributes[:id] = id
+          @view.delegate.set_node_attribute(input, :id, id)
         else
           id = input.attributes[:id]
         end
 
-        label.attributes[:for] = id
+        @view.delegate.set_node_attribute(label, :for, id)
       end
 
       def use_binding_nodes
@@ -271,7 +271,6 @@ module Pakyow
       end
 
       def create_select_option(value, view)
-        pp view.class
         option_binding = if option = view.delegate.find_first_significant_node(:option, view.object)
           option.label(:binding)
         else
@@ -303,7 +302,7 @@ module Pakyow
         if values.any?
           field_template = field_view.dup
           insertable_field = field_view
-          current_field = Form.from_object(field_view.object)
+          current_field = Form.from_object(field_view.delegate, field_view.object)
 
           values.each do |value|
             current_field.attributes[:value] = option_value(value, field_view).to_s
@@ -326,7 +325,7 @@ module Pakyow
         if values.any?
           template = field_view.dup
           insertable = field_view
-          current = Form.from_object(field_view.object)
+          current = Form.from_object(field_view.delegate, field_view.object)
 
           values.each do |value|
             if treat_as_nested?(current, value)
@@ -334,7 +333,7 @@ module Pakyow
 
               # Set the field names appropriately.
               #
-              current.object.each_significant_node_without_descending(:field) do |field|
+              current.delegate.each_significant_node_without_descending(:field, current.object) do |field|
                 name = "#{@view.object.label(:binding)}[#{current.label(:binding)}]"
                 name = if original_values.is_a?(Array)
                   "#{name}[][#{field.label(:binding)}]"
@@ -342,7 +341,7 @@ module Pakyow
                   "#{name}[#{field.label(:binding)}]"
                 end
 
-                field.attributes[:name] = name
+                current.delegate.set_node_attribute(field, :name, name)
               end
 
               # Insert a hidden field to identify the data on submission.
@@ -361,18 +360,24 @@ module Pakyow
                 current.prepend(safe(id_input.to_xml))
               end
             else
-              if input = current.object.find_first_significant_node(:field)
-                input.attributes[:name] = "#{@view.object.label(:binding)}[#{current.label(:binding)}]"
+              if input = current.delegate.find_first_significant_node(:field, current.object)
+                input = current.delegate.set_node_attribute(
+                  input, :name, "#{@view.object.label(:binding)}[#{current.label(:binding)}]"
+                )
 
                 if original_values.is_a?(Array) && input.attributes[:type] != "radio"
                   pluralize_field_name(input)
                 end
 
-                input.attributes[:value] = ensure_html_safety(option_value(value, current).to_s)
+                current.delegate.set_node_attribute(
+                  input, :value, ensure_html_safety(option_value(value, current).to_s)
+                )
               end
 
-              if label = current.object.find_first_significant_node(:label)
-                label.html = ensure_html_safety(label_value(value, label).to_s)
+              if label = current.delegate.find_first_significant_node(:label, current.object)
+                label = current.delegate.set_node_html(
+                  label, ensure_html_safety(label_value(value, label).to_s)
+                )
               end
 
               if input && label
@@ -397,7 +402,7 @@ module Pakyow
           false
         else
           keys = option_value_keys(view, value, false)
-          view.object.each_significant_node(:field) do |field|
+          view.delegate.each_significant_node(:field, view.object) do |field|
             return true if field.labeled?(:binding) && !keys.include?(field.label(:binding))
           end
 
@@ -477,7 +482,7 @@ module Pakyow
 
       def pluralize_field_name(field)
         unless field.attributes[:name].to_s.end_with?("[]") || field.attributes[:name].to_s.empty?
-          field.attributes[:name] = "#{field.attributes[:name]}[]"
+          @view.delegate.set_node_attribute(field, :name, "#{field.attributes[:name]}[]")
         end
       end
     end

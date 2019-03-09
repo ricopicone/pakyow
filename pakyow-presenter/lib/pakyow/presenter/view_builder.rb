@@ -7,16 +7,19 @@ module Pakyow
 
       action :cleanup_prototype_nodes do |state|
         unless Pakyow.env?(:prototype)
-          state.view.delegate.each_significant_node(:prototype, state.view.object).map(&:itself).each(&:remove)
+          state.view.delegate.each_significant_node(:prototype, state.view.object).map(&:itself).each do |node|
+            state.view.delegate.remove_node(node)
+          end
         end
       end
 
       action :componentize_forms do |state|
         if state.app.config.presenter.componentize
           state.view.delegate.each_significant_node(:form, state.view.object) do |form|
-            form.instance_variable_get(:@significance) << :component
-            form.attributes[:"data-ui"] = :form
-            form.set_label(:component, :form)
+            # TODO: need a method on StringDoc to add significance to a node...
+            # form.instance_variable_get(:@significance) << :component
+            form = state.view.delegate.set_node_attribute(form, :"data-ui", :form)
+            state.view.delegate.set_node_label(form, :component, :form)
           end
         end
       end
@@ -24,9 +27,10 @@ module Pakyow
       action :componentize_navigator do |state|
         if state.app.config.presenter.componentize
           if html = state.view.delegate.find_first_significant_node(:html, state.view.object)
-            html.instance_variable_get(:@significance) << :component
-            html.attributes[:"data-ui"] = :navigable
-            html.set_label(:component, :navigable)
+            # TODO: need a method on StringDoc to add significance to a node...
+            # html.instance_variable_get(:@significance) << :component
+            html = state.view.delegate.set_node_attribute(html, :"data-ui", :navigable)
+            state.view.delegate.set_node_label(html, :component, :navigable)
           end
         end
       end
@@ -34,10 +38,10 @@ module Pakyow
       action :embed_authenticity, before: :embed_assets do |state|
         if state.app.config.presenter.embed_authenticity_token && head = state.view.delegate.find_first_significant_node(:head, state.view.object)
           # embed the authenticity token
-          head.append("<meta name=\"pw-authenticity-token\">")
+          state.view.delegate.append_to_node(head, "<meta name=\"pw-authenticity-token\">")
 
           # embed the parameter name the token should be submitted as
-          head.append("<meta name=\"pw-authenticity-param\">")
+          state.view.delegate.append_to_node(head, "<meta name=\"pw-authenticity-param\">")
         end
       end
 

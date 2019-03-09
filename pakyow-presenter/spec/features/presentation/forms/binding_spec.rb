@@ -125,22 +125,23 @@ RSpec.describe "binding values to a form via presenter" do
         end
 
         it "selects the matching option" do
-          expect(form.find(:tag).view.object.find_significant_nodes(:option)[1].attributes[:selected]).to eq("selected")
+          expect(form.find(:tag).view.delegate.find_significant_nodes(:option, form.find(:tag).view.object)[1].attributes[:selected]).to eq("selected")
         end
 
         it "unselects the options that do not match" do
-          expect(form.find(:tag).view.object.find_significant_nodes(:option)[0].attributes[:selected]).to eq(nil)
+          expect(form.find(:tag).view.delegate.find_significant_nodes(:option, form.find(:tag).view.object)[0].attributes[:selected]).to eq(nil)
         end
 
         context "option is already selected" do
           before do
-            form.find(:tag).view.object.find_significant_nodes(:option)[0].attributes[:selected] = "selected"
+            node = form.find(:tag).view.delegate.find_significant_nodes(:option, form.find(:tag).view.object)[0]
+            form.find(:tag).view.delegate.set_node_attribute(node, :selected, "selected")
             form.bind(tag: "bar")
           end
 
           it "unselects the options that do not match" do
-            expect(form.find(:tag).view.object.find_significant_nodes(:option)[0].attributes[:selected]).to eq(nil)
-            expect(form.find(:tag).view.object.find_significant_nodes(:option)[1].attributes[:selected]).to eq("selected")
+            expect(form.find(:tag).view.delegate.find_significant_nodes(:option, form.find(:tag).view.object)[0].attributes[:selected]).to eq(nil)
+            expect(form.find(:tag).view.delegate.find_significant_nodes(:option, form.find(:tag).view.object)[1].attributes[:selected]).to eq("selected")
           end
         end
       end
@@ -151,8 +152,8 @@ RSpec.describe "binding values to a form via presenter" do
         end
 
         it "unselects all options" do
-          expect(form.find(:tag).view.object.find_significant_nodes(:option)[0].attributes[:selected]).to eq(nil)
-          expect(form.find(:tag).view.object.find_significant_nodes(:option)[1].attributes[:selected]).to eq(nil)
+          expect(form.find(:tag).view.delegate.find_significant_nodes(:option, form.find(:tag).view.object)[0].attributes[:selected]).to eq(nil)
+          expect(form.find(:tag).view.delegate.find_significant_nodes(:option, form.find(:tag).view.object)[1].attributes[:selected]).to eq(nil)
         end
       end
     end

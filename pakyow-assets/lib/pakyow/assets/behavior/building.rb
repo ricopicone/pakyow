@@ -14,11 +14,15 @@ module Pakyow
               if head = state.view.head
                 state.app.packs(state.view).each do |pack|
                   if pack.javascripts?
-                    head.object.append("<script src=\"#{pack.public_path}.js\"></script>\n")
+                    state.view.delegate.append_to_node(
+                      head.object, "<script src=\"#{pack.public_path}.js\"></script>\n"
+                    )
                   end
 
                   if pack.stylesheets?
-                    head.object.append("<link rel=\"stylesheet\" type=\"text/css\" media=\"all\" href=\"#{pack.public_path}.css\">\n")
+                    state.view.delegate.append_to_node(
+                      head.object, "<link rel=\"stylesheet\" type=\"text/css\" media=\"all\" href=\"#{pack.public_path}.css\">\n"
+                    )
                   end
                 end
               end
@@ -47,7 +51,7 @@ module Pakyow
 
         # @api private
         def component_packs(view)
-          view.object.each_significant_node(:component).map { |node|
+          view.delegate.each_significant_node(:component).map { |node|
             node.label(:component)
           }
         end

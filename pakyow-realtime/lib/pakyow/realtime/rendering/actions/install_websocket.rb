@@ -9,7 +9,7 @@ module Pakyow
         class InstallWebsocket
           def call(renderer)
             if renderer.socket_client_id
-              renderer.presenter.view.object.each_significant_node(:meta) do |node|
+              renderer.presenter.view.delegate.each_significant_node(:meta) do |node|
                 case node.attributes[:name]
                 when "pw-socket"
                   endpoint = renderer.connection.app.config.realtime.endpoint
@@ -22,8 +22,9 @@ module Pakyow
                       File.join("#{renderer.connection.ssl? ? "wss" : "ws"}://#{renderer.connection.request.host_with_port}", renderer.connection.app.config.realtime.path)
                     end
                   end
-
-                  node.attributes["data-config"] = "endpoint: #{endpoint}?id=#{renderer.connection.verifier.sign(renderer.socket_client_id)}"
+                  renderer.presenter.view.delegate.set_node_attribute(
+                    node, "data-config", "endpoint: #{endpoint}?id=#{renderer.connection.verifier.sign(renderer.socket_client_id)}"
+                  )
                 end
               end
             end

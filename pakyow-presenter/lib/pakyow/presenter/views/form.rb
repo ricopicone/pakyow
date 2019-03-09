@@ -30,11 +30,11 @@ module Pakyow
         node = super
 
         if node.tagname == SELECT_TAG
-          select_option_with_value(value, View.from_object(node))
+          select_option_with_value(value, View.from_object(@delegate, node))
         end
 
         if CHECKED_TYPES.include?(node.attributes[:type])
-          check_or_uncheck_value(value, View.from_object(node))
+          check_or_uncheck_value(value, View.from_object(@delegate, node))
         end
 
         node
@@ -51,8 +51,8 @@ module Pakyow
       end
 
       def select_option_with_value(value, view)
-        view.object.each_significant_node(:option) do |option|
-          View.from_object(option).attributes[:selected] = option.attributes[:value] == value
+        view.delegate.each_significant_node(:option, view.object) do |option|
+          View.from_object(view.delegate, option).attributes[:selected] = option.attributes[:value] == value
         end
       end
     end

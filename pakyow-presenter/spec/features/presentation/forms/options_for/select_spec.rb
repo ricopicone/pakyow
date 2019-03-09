@@ -30,11 +30,11 @@ RSpec.describe "populating options for a select field" do
   end
 
   it "creates an option for each value" do
-    expect(tag_view.object.find_significant_nodes(:option).count).to eq(3)
+    expect(tag_view.delegate.find_significant_nodes(:option, tag_view.object).count).to eq(3)
   end
 
   it "sets the submitted value for each option" do
-    options = tag_view.object.find_significant_nodes(:option)
+    options = tag_view.delegate.find_significant_nodes(:option, tag_view.object)
     expect(options[0].attributes[:value]).to eq("1")
     expect(options[1].attributes[:value]).to eq("2")
     expect(options[2].attributes[:value]).to eq("3")
@@ -42,9 +42,9 @@ RSpec.describe "populating options for a select field" do
 
   it "sets the presentation value for each option" do
     options = tag_view.delegate.find_significant_nodes(:option, tag_view.object)
-    expect(options[0].text).to eq("one")
-    expect(options[1].text).to eq("two")
-    expect(options[2].text).to eq("three")
+    expect(tag_view.delegate.node_text(options[0])).to eq("one")
+    expect(tag_view.delegate.node_text(options[1])).to eq("two")
+    expect(tag_view.delegate.node_text(options[2])).to eq("three")
   end
 
   context "given a block" do
@@ -55,7 +55,7 @@ RSpec.describe "populating options for a select field" do
     end
 
     it "uses options provided by the block" do
-      expect(tag_view.object.find_significant_nodes(:option).count).to eq(3)
+      expect(tag_view.delegate.find_significant_nodes(:option, tag_view.object).count).to eq(3)
     end
   end
 
@@ -70,17 +70,17 @@ RSpec.describe "populating options for a select field" do
       end
 
       it "sets the submitted value for each option" do
-        options = tag_view.object.find_significant_nodes(:option)
+        options = tag_view.delegate.find_significant_nodes(:option, tag_view.object)
         expect(options[0].attributes[:value]).to eq("1")
         expect(options[1].attributes[:value]).to eq("2")
         expect(options[2].attributes[:value]).to eq("3")
       end
 
       it "sets the presentation value for each option" do
-        options = tag_view.object.find_significant_nodes(:option)
-        expect(options[0].text).to eq("one")
-        expect(options[1].text).to eq("two")
-        expect(options[2].text).to eq("three")
+        options = tag_view.delegate.find_significant_nodes(:option, tag_view.object)
+        expect(tag_view.delegate.node_text(options[0])).to eq("one")
+        expect(tag_view.delegate.node_text(options[1])).to eq("two")
+        expect(tag_view.delegate.node_text(options[2])).to eq("three")
       end
     end
 
@@ -122,17 +122,17 @@ RSpec.describe "populating options for a select field" do
       end
 
       it "sets the submitted value for each option" do
-        options = tag_view.object.find_significant_nodes(:option)
+        options = tag_view.delegate.find_significant_nodes(:option, tag_view.object)
         expect(options[0].attributes[:value]).to eq("one")
         expect(options[1].attributes[:value]).to eq("two")
         expect(options[2].attributes[:value]).to eq("three")
       end
 
       it "sets the presentation value for each option" do
-        options = tag_view.object.find_significant_nodes(:option)
-        expect(options[0].text).to eq("One")
-        expect(options[1].text).to eq("Two")
-        expect(options[2].text).to eq("Three")
+        options = tag_view.delegate.find_significant_nodes(:option, tag_view.object)
+        expect(tag_view.delegate.node_text(options[0])).to eq("One")
+        expect(tag_view.delegate.node_text(options[1])).to eq("Two")
+        expect(tag_view.delegate.node_text(options[2])).to eq("Three")
       end
     end
 
@@ -146,17 +146,17 @@ RSpec.describe "populating options for a select field" do
       end
 
       it "does not set the submitted value for each option" do
-        options = tag_view.object.find_significant_nodes(:option)
+        options = tag_view.delegate.find_significant_nodes(:option, tag_view.object)
         expect(options[0].attributes[:value]).to eq("")
         expect(options[1].attributes[:value]).to eq("")
         expect(options[2].attributes[:value]).to eq("")
       end
 
       it "sets the presentation value for each option" do
-        options = tag_view.object.find_significant_nodes(:option)
-        expect(options[0].text).to eq("One")
-        expect(options[1].text).to eq("Two")
-        expect(options[2].text).to eq("Three")
+        options = tag_view.delegate.find_significant_nodes(:option, tag_view.object)
+        expect(tag_view.delegate.node_text(options[0])).to eq("One")
+        expect(tag_view.delegate.node_text(options[1])).to eq("Two")
+        expect(tag_view.delegate.node_text(options[2])).to eq("Three")
       end
     end
 
@@ -186,17 +186,17 @@ RSpec.describe "populating options for a select field" do
       end
 
       it "sets the submitted value for each option" do
-        options = tag_view.object.find_significant_nodes(:option)
+        options = tag_view.delegate.find_significant_nodes(:option, tag_view.object)
         expect(options[0].attributes[:value]).to eq("one")
         expect(options[1].attributes[:value]).to eq("two")
         expect(options[2].attributes[:value]).to eq("three")
       end
 
       it "sets the presentation value for each option" do
-        options = tag_view.object.find_significant_nodes(:option)
-        expect(options[0].text).to eq("One")
-        expect(options[1].text).to eq("Two")
-        expect(options[2].text).to eq("Three")
+        options = tag_view.delegate.find_significant_nodes(:option, tag_view.object)
+        expect(tag_view.delegate.node_text(options[0])).to eq("One")
+        expect(tag_view.delegate.node_text(options[1])).to eq("Two")
+        expect(tag_view.delegate.node_text(options[2])).to eq("Three")
       end
     end
 
@@ -222,17 +222,17 @@ RSpec.describe "populating options for a select field" do
       end
 
       it "sets the submitted value for each option" do
-        options = tag_view.object.find_significant_nodes(:option)
+        options = tag_view.delegate.find_significant_nodes(:option, tag_view.object)
         expect(options[0].attributes[:value]).to eq("one")
         expect(options[1].attributes[:value]).to eq("two")
         expect(options[2].attributes[:value]).to eq("three")
       end
 
       it "does not set the presentation value for each option" do
-        options = tag_view.object.find_significant_nodes(:option)
-        expect(options[0].text).to eq("")
-        expect(options[1].text).to eq("")
-        expect(options[2].text).to eq("")
+        options = tag_view.delegate.find_significant_nodes(:option, tag_view.object)
+        expect(tag_view.delegate.node_text(options[0])).to eq("")
+        expect(tag_view.delegate.node_text(options[1])).to eq("")
+        expect(tag_view.delegate.node_text(options[2])).to eq("")
       end
     end
   end
@@ -243,17 +243,17 @@ RSpec.describe "populating options for a select field" do
     end
 
     it "creates a single option for the object" do
-      expect(tag_view.object.find_significant_nodes(:option).count).to eq(1)
+      expect(tag_view.delegate.find_significant_nodes(:option, tag_view.object).count).to eq(1)
     end
 
     it "sets the submitted value for each option" do
-      options = tag_view.object.find_significant_nodes(:option)
+      options = tag_view.delegate.find_significant_nodes(:option, tag_view.object)
       expect(options[0].attributes[:value]).to eq("1")
     end
 
     it "sets the presentation value for each option" do
-      options = tag_view.object.find_significant_nodes(:option)
-      expect(options[0].text).to eq("one")
+      options = tag_view.delegate.find_significant_nodes(:option, tag_view.object)
+      expect(tag_view.delegate.node_text(options[0])).to eq("one")
     end
   end
 
@@ -263,7 +263,7 @@ RSpec.describe "populating options for a select field" do
     end
 
     it "clears the options" do
-      expect(tag_view.object.find_significant_nodes(:option).count).to eq(0)
+      expect(tag_view.delegate.find_significant_nodes(:option, tag_view.object).count).to eq(0)
     end
   end
 
@@ -273,7 +273,7 @@ RSpec.describe "populating options for a select field" do
     end
 
     it "clears the options" do
-      expect(tag_view.object.find_significant_nodes(:option).count).to eq(0)
+      expect(tag_view.delegate.find_significant_nodes(:option, tag_view.object).count).to eq(0)
     end
   end
 end

@@ -21,6 +21,7 @@ RSpec.describe "telling the user about a missing view in development" do
     end
 
     it "includes instructions for creating a page" do
+      puts call[2].read
       expect(call[2].read).to include("Try creating a view template for this path:")
       expect(call[2].read).to include("frontend/pages/nonexistent.html")
     end

@@ -1,16 +1,14 @@
 # frozen_string_literal: true
 
+require "delegate"
+
 module Pakyow
   module Presenter
     # Wraps one or more versioned view objects. Provides an interface for manipulating multiple
     # view versions as if they were a single object, picking one to use for presentation.
     #
-    class VersionedView < View
+    class VersionedView < SimpleDelegator
       DEFAULT_VERSION = :default
-
-      # View that will be presented.
-      #
-      attr_reader :working
 
       def initialize(versions)
         @versions = versions
@@ -18,11 +16,19 @@ module Pakyow
         @used = false
       end
 
-      def initialize_copy(_)
+      def initialize_dup(_)
         super
 
         @versions = @versions.map(&:dup)
         determine_working_version
+      end
+
+      def instance
+        self.class.allocate.tap do |instance|
+          instance.instance_variable_set(:@used, false)
+          instance.instance_variable_set(:@versions, @versions.map(&:instance))
+          instance.send(:determine_working_version)
+        end
       end
 
       # Returns true if +version+ exists.
@@ -81,6 +87,12 @@ module Pakyow
         @used == true
       end
 
+      # Fixes an issue using pp inside a delegator.
+      #
+      def pp(*args)
+        Kernel.pp(*args)
+      end
+
       private
 
       def cleanup(mode = nil)
@@ -88,9 +100,10 @@ module Pakyow
           @versions.each(&:remove)
           @versions = []
         else
-          # @working.object = @delegate.delete_node_label(@working.object, :version)
+          __getobj__.object = __getobj__.delegate.delete_node_label(__getobj__.object, :version)
+
           @versions.dup.each do |view_to_remove|
-            unless view_to_remove.equal?(@working)
+            unless view_to_remove == __getobj__
               view_to_remove.remove
               @versions.delete(view_to_remove)
             end
@@ -103,12 +116,7 @@ module Pakyow
       end
 
       def versioned_view=(view)
-        @delegate = view.delegate
-        @working = view
-        @object = view.object
-        @version = view.version
-        @attributes = view.attributes
-        @info = view.info
+        __setobj__(view)
       end
 
       def default_version

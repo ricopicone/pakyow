@@ -155,7 +155,9 @@ module Pakyow
               # Set the transformation_id on the target node so that transformations can be applied to the right place.
               #
               if transformation_target?
-                @transformation_target.attributes[:"data-t"] = transformation_id
+                @presenter.view.delegate.set_node_attribute(
+                  @transformation_target, "data-t", transformation_id
+                )
               end
 
               # Find every subscribable presentable, creating a data subscription for each.

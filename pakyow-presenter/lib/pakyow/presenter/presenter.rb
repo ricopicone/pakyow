@@ -217,7 +217,7 @@ module Pakyow
               remove
             end
           else
-            template = @view.dup
+            template = @view.instance
             insertable = @view
             current = @view
 
@@ -230,12 +230,17 @@ module Pakyow
                 yield presenter_for(current), yield_binder ? binder : object
               end
 
-              unless current.equal?(@view)
-                insertable.after(current)
+              unless current.object_id == @view.object_id
+                @view.delegate.insert_after_node(
+                  insertable.object, current.object,
+                  current.delegate.children_for_node(current.object),
+                  current.delegate.transformations_for_node(current.object)
+                )
+
                 insertable = current
               end
 
-              current = template.dup
+              current = template.instance
             end
           end
         end
@@ -276,9 +281,7 @@ module Pakyow
               end
             end
 
-            puts presenter.view#.delegate
             presenter.bind(binder)
-            puts presenter.view#.delegate
 
             presenter.view.binding_scopes(descend: false).uniq { |binding_scope|
               binding_scope.label(:binding)

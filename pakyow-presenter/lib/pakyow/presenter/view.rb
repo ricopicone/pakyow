@@ -82,6 +82,19 @@ module Pakyow
         end
       end
 
+      def instance
+        self.class.allocate.tap do |instance|
+          instance.instance_variable_set(:@info, @info.dup)
+          instance.instance_variable_set(:@delegate, @delegate.instance(@object))
+          instance.instance_variable_set(:@object, instance.delegate.nodes[0])
+          if instance.object.respond_to?(:attributes)
+            instance.attributes = instance.object.attributes
+          else
+            instance.instance_variable_set(:@attributes, nil)
+          end
+        end
+      end
+
       # Finds a view binding by name. When passed more than one value, the view will
       # be traversed through each name. Returns a {VersionedView}.
       #
@@ -249,10 +262,8 @@ module Pakyow
               end
             end
 
-            # TODO: the next line is causing us to lose a reference or something...
-            # so when we change attributes we replace @object, which is the correct thing to do...
-            # attributes[:"data-id"] = object[:id]
-            # @object = @delegate.set_node_label(@object, :used, true)
+            attributes[:"data-id"] = object[:id]
+            @object = @delegate.set_node_label(@object, :used, true)
           end
         end
       end
@@ -455,7 +466,7 @@ module Pakyow
 
       # @api private
       def binding_prop?(node)
-        node.significant?(:binding) && (!node.significant?(:binding_within) || node.significant?(:multipart_binding))
+        node.significant?(:binding) && node.label(:version) != :empty && (!node.significant?(:binding_within) || node.significant?(:multipart_binding))
       end
 
       # @api private
@@ -475,7 +486,9 @@ module Pakyow
         tap do
           @delegate.each_significant_node(:partial, @object) do |partial_node|
             if replacement = partials[partial_node.label(:partial)]
-              partial_node.replace(replacement.mixin(partials).object)
+              @delegate.replace_node(
+                partial_node, replacement.mixin(partials).delegate
+              )
             end
           end
         end
@@ -519,10 +532,9 @@ module Pakyow
       end
 
       def view_from_view_or_string(view_or_string)
-        if view_or_string.is_a?(View)
+        case view_or_string
+        when View, VersionedView
           view_or_string
-        elsif view_or_string.is_a?(String)
-          View.new(ensure_html_safety(view_or_string))
         else
           View.new(ensure_html_safety(view_or_string.to_s))
         end
