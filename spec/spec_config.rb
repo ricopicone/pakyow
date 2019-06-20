@@ -1,3 +1,7 @@
+if ENV.key?("CI")
+  $VERBOSE = nil
+end
+
 require "pakyow/support/deep_dup"
 
 RSpec.configure do |config|

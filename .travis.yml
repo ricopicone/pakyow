@@ -20,21 +20,7 @@ rvm:
 
 env:
   matrix:
-    - CI=true GEMS=assets
-    - CI=true GEMS=core
-    - CI=true GEMS=data
-    - CI=true CI_DB=mysql GEMS=data
-    - CI=true CI_DB=postgres GEMS=data
     - CI=true CI_DB=sqlite GEMS=data
-    - CI=true GEMS=form
-    - CI=true GEMS=mailer
-    - CI=true GEMS=presenter
-    - CI=true GEMS=realtime
-    - CI=true GEMS=routing
-    - CI=true GEMS=support
-    - CI=true GEMS=ui
-    - CI_BENCH=true
-    - CI_SMOKE=true
 
 matrix:
   include:
